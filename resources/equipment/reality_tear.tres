@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="EquipmentData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/equipment/equipment_data.gd" id="1_equip"]
+
+[resource]
+script = ExtResource("1_equip")
+equipment_id = "reality_tear"
+equipment_name = "Reality Tear"
+description = "A rift in the fabric of existence. Devastating critical strikes."
+rarity = 2
+equipment_type = 3
+element = 4
+damage_bonus = 0.0
+fire_rate_bonus = 0.0
+projectile_speed_bonus = 0.0
+projectile_size_bonus = 0.0
+pierce_bonus = 0
+health_bonus = 0.0
+health_regen = 0.0
+move_speed_bonus = 0.0
+crit_chance_bonus = 0.25
+crit_damage_bonus = 0.5
+special_effect_id = ""
+special_effect_value = 0.0
+glow_color = Color(1, 0.2, 0.8, 1)

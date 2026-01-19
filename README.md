@@ -87,8 +87,27 @@ git merge feature/nome-feature
 - [x] Cambio zona automatico ogni 3 wave
 - [x] Integrazione con EnemySpawner
 
+### Obiettivo #3: Equipaggiamenti + Sinergie ✅
+- [x] EquipmentData resource class
+- [x] 10 equipaggiamenti con rarità:
+  - **Fire**: Fire Surge, Inferno Core, Blazing Heart
+  - **Void**: Void Shard, Dark Matter, Void Nexus
+  - **Plasma**: Plasma Cell, Storm Capacitor
+  - **Chaos**: Chaos Fragment, Reality Tear
+- [x] Drop rates: 90% Common, 9% Rare, 1% Epic
+- [x] Equipaggiamenti stackabili (+bonus cumulativo)
+- [x] 4 Sinergie:
+  - **Inferno** (3x Fire): Burn damage
+  - **Void Walker** (3x Void): +50% pierce damage
+  - **Storm Bringer** (2x Plasma): Chain lightning
+  - **Chaos Lord** (2x Chaos): +25% crit chance
+- [x] EquipmentManager autoload
+- [x] Sistema crit con danno moltiplicato
+- [x] Pickup magnetici dai nemici
+- [x] EquipmentUI con icone, tooltip, sinergie
+- [x] Notifiche raccolta e attivazione sinergie
+
 ### Prossimi Obiettivi
-- [ ] **#3** Sistema equipaggiamenti + sinergie  
 - [ ] **#4** Meta-progression (personaggi/talenti)
 - [ ] **#5** Co-op split screen
 

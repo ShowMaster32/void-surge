@@ -12,14 +12,22 @@ signal died
 # Stats base
 @export_group("Stats")
 @export var max_health: float = 100.0
-@export var move_speed: float = 300.0
+@export var base_move_speed: float = 300.0
 @export var acceleration: float = 2000.0
 @export var friction: float = 1500.0
 
 # Combat
 @export_group("Combat")
-@export var fire_rate: float = 0.15  # Secondi tra spari
+@export var base_fire_rate: float = 0.15  # Secondi tra spari
+@export var base_damage: float = 10.0
 @export var projectile_scene: PackedScene
+
+# Stats modificate da equipment
+var move_speed: float
+var fire_rate: float
+var damage_multiplier: float = 1.0
+var crit_chance: float = 0.0
+var crit_damage: float = 1.5  # Moltiplicatore base crit
 
 # Stato interno
 var current_health: float
@@ -46,6 +54,8 @@ const PLAYER_COLORS: Array[Color] = [
 
 func _ready() -> void:
 	current_health = max_health
+	move_speed = base_move_speed
+	fire_rate = base_fire_rate
 	add_to_group("players")
 	
 	# Setup timer
@@ -65,6 +75,10 @@ func _ready() -> void:
 	
 	# Registra con GameManager
 	GameManager.register_player(self)
+	
+	# Connetti a equipment stats
+	EquipmentManager.equipment_stats_changed.connect(_on_equipment_stats_changed)
+	_apply_equipment_stats()
 
 
 func _exit_tree() -> void:
@@ -126,8 +140,52 @@ func shoot() -> void:
 	projectile.direction = aim_direction
 	projectile.owner_player_id = player_id
 	
+	# Applica bonus equipment
+	var equip_stats := EquipmentManager.get_all_stats()
+	projectile.damage = base_damage * damage_multiplier
+	projectile.pierce_count = int(equip_stats.get("pierce_bonus", 0))
+	projectile.speed *= (1.0 + equip_stats.get("projectile_speed_bonus", 0.0))
+	projectile.crit_chance = crit_chance
+	projectile.crit_damage = crit_damage
+	
+	# Bonus sinergie
+	projectile.burn_damage = equip_stats.get("burn_damage", 0.0)
+	projectile.pierce_damage_mult = equip_stats.get("pierce_damage_mult", 0.0)
+	
 	# Aggiungi alla scena
 	get_tree().current_scene.add_child(projectile)
+
+
+func _on_equipment_stats_changed(_stats: Dictionary) -> void:
+	_apply_equipment_stats()
+
+
+func _apply_equipment_stats() -> void:
+	## Applica bonus degli equipaggiamenti
+	var stats := EquipmentManager.get_all_stats()
+	
+	# Movimento
+	move_speed = base_move_speed * (1.0 + stats.get("move_speed_bonus", 0.0))
+	
+	# Combattimento
+	damage_multiplier = 1.0 + stats.get("damage_bonus", 0.0)
+	crit_chance = stats.get("crit_chance_bonus", 0.0)
+	crit_damage = 1.5 + stats.get("crit_damage_bonus", 0.0)
+	
+	# Fire rate (più basso = più veloce)
+	var fire_rate_mult := 1.0 / (1.0 + stats.get("fire_rate_bonus", 0.0))
+	fire_rate = base_fire_rate * fire_rate_mult
+	fire_rate_timer.wait_time = fire_rate
+	
+	# HP bonus
+	var hp_bonus: float = stats.get("health_bonus", 0.0)
+	if hp_bonus > 0:
+		var old_max := max_health
+		max_health = 100.0 + hp_bonus
+		# Scala HP corrente proporzionalmente
+		if old_max > 0:
+			current_health = current_health * (max_health / old_max)
+		health_changed.emit(current_health, max_health)
 
 
 func take_damage(amount: float) -> void:

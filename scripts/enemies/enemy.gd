@@ -18,6 +18,10 @@ enum State { PATROL, CHASE, ATTACK }
 @export var attack_range: float = 50.0
 @export var patrol_radius: float = 150.0
 
+@export_group("Drops")
+@export var drop_chance: float = 0.3  # 30% chance to drop equipment
+@export var pickup_scene: PackedScene
+
 # Stato interno
 var current_health: float
 var current_state: State = State.PATROL
@@ -169,10 +173,43 @@ func take_damage(amount: float) -> void:
 func die() -> void:
 	GameManager.add_kill()
 	died.emit(self)
+	
 	# Effetto morte
 	if is_instance_valid(VFX):
 		VFX.spawn_death_effect(global_position, ENEMY_COLORS[randi() % ENEMY_COLORS.size()])
+	
+	# Drop equipment
+	_try_drop_equipment()
+	
 	queue_free()
+
+
+func _try_drop_equipment() -> void:
+	## Prova a droppare un equipaggiamento
+	# Ottieni drop multiplier dalla zona
+	var drop_mult := 1.0
+	var zone_gen := get_tree().get_first_node_in_group("zone_generator") as ZoneGenerator
+	if zone_gen and zone_gen.current_zone:
+		drop_mult = zone_gen.current_zone.drop_rate_multiplier
+	
+	# Roll per il drop
+	if randf() > drop_chance * drop_mult:
+		return
+	
+	# Genera equipaggiamento casuale
+	var equipment := EquipmentManager.roll_random_equipment(drop_mult)
+	if not equipment:
+		return
+	
+	# Spawn pickup
+	if not pickup_scene:
+		pickup_scene = load("res://scenes/pickups/equipment_pickup.tscn")
+	
+	if pickup_scene:
+		var pickup := pickup_scene.instantiate() as EquipmentPickup
+		pickup.global_position = global_position + Vector2(randf_range(-20, 20), randf_range(-20, 20))
+		pickup.setup(equipment)
+		get_tree().current_scene.add_child(pickup)
 
 
 func _start_hit_flash() -> void:

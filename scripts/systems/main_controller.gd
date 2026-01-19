@@ -10,6 +10,9 @@ func _ready() -> void:
 	if zone_generator:
 		zone_generator.zone_changed.connect(_on_zone_changed)
 	
+	# Reset equipment per nuova run
+	EquipmentManager.reset()
+	
 	# Avvia il gioco quando la scena è pronta
 	GameManager.start_game(1)
 

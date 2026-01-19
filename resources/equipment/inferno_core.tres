@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="EquipmentData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/equipment/equipment_data.gd" id="1_equip"]
+
+[resource]
+script = ExtResource("1_equip")
+equipment_id = "inferno_core"
+equipment_name = "Inferno Core"
+description = "The burning heart of a dying star. Greatly enhances firepower."
+rarity = 1
+equipment_type = 0
+element = 1
+damage_bonus = 0.15
+fire_rate_bonus = 0.05
+projectile_speed_bonus = 0.0
+projectile_size_bonus = 0.0
+pierce_bonus = 0
+health_bonus = 0.0
+health_regen = 0.0
+move_speed_bonus = 0.0
+crit_chance_bonus = 0.0
+crit_damage_bonus = 0.0
+special_effect_id = ""
+special_effect_value = 0.0
+glow_color = Color(1, 0.3, 0.1, 1)
