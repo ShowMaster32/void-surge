@@ -70,8 +70,24 @@ git merge feature/nome-feature
 - [x] VFX system (hit/death particles)
 - [x] Input controller support
 
+### Obiettivo #2: Procedural Generation ✅
+- [x] ZoneData resource per definire biomi
+- [x] 5 biomi distinti:
+  - Void Black (nero, facile)
+  - Nebula Purple (viola, più drop)
+  - Asteroid Field (grigio, ostacoli)
+  - Plasma Storm (blu, frenetico)
+  - Dimension Rift (glitch, difficile)
+- [x] ZoneGenerator con background dinamico
+- [x] Stelle/particelle procedurali
+- [x] Ostacoli generati runtime
+- [x] Modificatori zona (spawn, HP, danno, velocità)
+- [x] Hazard ambientali (danno periodico)
+- [x] Zone Indicator UI con animazione
+- [x] Cambio zona automatico ogni 3 wave
+- [x] Integrazione con EnemySpawner
+
 ### Prossimi Obiettivi
-- [ ] **#2** Generazione procedurale 5 zone
 - [ ] **#3** Sistema equipaggiamenti + sinergie  
 - [ ] **#4** Meta-progression (personaggi/talenti)
 - [ ] **#5** Co-op split screen

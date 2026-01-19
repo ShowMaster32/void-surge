@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="ZoneData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/zones/zone_data.gd" id="1_zone"]
+
+[resource]
+script = ExtResource("1_zone")
+zone_id = "void_black"
+zone_name = "Void Black"
+description = "The endless darkness of the void. A place of silence and shadow."
+background_color_top = Color(0.01, 0.005, 0.03, 1)
+background_color_bottom = Color(0.03, 0.01, 0.06, 1)
+ambient_color = Color(0.05, 0.05, 0.1, 1)
+particle_color = Color(0.2, 0.2, 0.4, 0.3)
+glow_color = Color(0.4, 0.4, 0.8, 1)
+enemy_spawn_multiplier = 1.0
+enemy_health_multiplier = 1.0
+enemy_damage_multiplier = 1.0
+enemy_speed_multiplier = 1.0
+drop_rate_multiplier = 1.0
+player_speed_modifier = 1.0
+obstacle_density = 0.05
+hazard_enabled = false
+hazard_damage = 0.0
+hazard_interval = 0.0
+music_intensity = 0.8
+min_enemies_per_wave = 5
+max_enemies_per_wave = 12
+special_enemy_chance = 0.05

@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="ZoneData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://resources/zones/zone_data.gd" id="1_zone"]
+
+[resource]
+script = ExtResource("1_zone")
+zone_id = "plasma_storm"
+zone_name = "Plasma Storm"
+description = "Violent energy discharges crackle through space. High risk, high reward."
+background_color_top = Color(0.02, 0.08, 0.15, 1)
+background_color_bottom = Color(0.01, 0.04, 0.1, 1)
+ambient_color = Color(0.1, 0.3, 0.5, 1)
+particle_color = Color(0.3, 0.7, 1.0, 0.6)
+glow_color = Color(0.4, 0.8, 1.0, 1)
+enemy_spawn_multiplier = 1.5
+enemy_health_multiplier = 0.9
+enemy_damage_multiplier = 1.4
+enemy_speed_multiplier = 1.2
+drop_rate_multiplier = 1.5
+player_speed_modifier = 1.1
+obstacle_density = 0.1
+hazard_enabled = true
+hazard_damage = 12.0
+hazard_interval = 1.5
+music_intensity = 1.4
+min_enemies_per_wave = 8
+max_enemies_per_wave = 20
+special_enemy_chance = 0.2

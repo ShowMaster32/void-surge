@@ -1,7 +1,7 @@
 extends Node2D
 class_name EnemySpawner
 ## EnemySpawner - Gestisce lo spawn continuo di nemici
-## Aumenta difficoltà nel tempo
+## Aumenta difficoltà nel tempo e applica modificatori di zona
 
 signal wave_changed(wave: int)
 
@@ -22,9 +22,16 @@ var spawn_timer: float = 0.0
 var wave_timer: float = 0.0
 var active_enemies: Array[Node2D] = []
 
+# Riferimento al generatore di zone
+var zone_generator: ZoneGenerator
+
 
 func _ready() -> void:
 	spawn_rate = initial_spawn_rate
+	
+	# Trova il ZoneGenerator nella scena
+	await get_tree().process_frame
+	zone_generator = get_tree().get_first_node_in_group("zone_generator") as ZoneGenerator
 
 
 func _process(delta: float) -> void:
@@ -36,9 +43,13 @@ func _process(delta: float) -> void:
 	if wave_timer >= wave_duration:
 		_advance_wave()
 	
-	# Spawn timer
+	# Spawn timer con modificatore zona
+	var zone_spawn_mult := 1.0
+	if zone_generator and zone_generator.current_zone:
+		zone_spawn_mult = zone_generator.current_zone.enemy_spawn_multiplier
+	
 	spawn_timer += delta
-	var spawn_interval := 1.0 / spawn_rate
+	var spawn_interval := 1.0 / (spawn_rate * zone_spawn_mult)
 	
 	while spawn_timer >= spawn_interval:
 		spawn_timer -= spawn_interval
@@ -56,11 +67,22 @@ func _advance_wave() -> void:
 	# Aumenta difficoltà
 	spawn_rate = minf(initial_spawn_rate + (current_wave - 1) * spawn_rate_increase, max_spawn_rate)
 	
+	# Cambia zona ogni 3 wave
+	if current_wave % 3 == 0 and zone_generator:
+		zone_generator.next_zone()
+	
 	wave_changed.emit(current_wave)
 
 
 func _try_spawn_enemy() -> void:
-	if active_enemies.size() >= max_enemies:
+	# Calcola max enemies con modificatore zona
+	var zone_max_mult := 1.0
+	if zone_generator and zone_generator.current_zone:
+		zone_max_mult = zone_generator.current_zone.enemy_spawn_multiplier
+	
+	var effective_max := int(max_enemies * zone_max_mult)
+	
+	if active_enemies.size() >= effective_max:
 		return
 	
 	if not enemy_scene:
@@ -78,9 +100,27 @@ func _try_spawn_enemy() -> void:
 	
 	# Scala stats con wave
 	var wave_multiplier := 1.0 + (current_wave - 1) * 0.1
-	enemy.max_health *= wave_multiplier
-	enemy.damage *= wave_multiplier
-	enemy.move_speed *= 1.0 + (current_wave - 1) * 0.02
+	
+	# Applica modificatori zona
+	var zone_health_mult := 1.0
+	var zone_damage_mult := 1.0
+	var zone_speed_mult := 1.0
+	
+	if zone_generator and zone_generator.current_zone:
+		var zone := zone_generator.current_zone
+		zone_health_mult = zone.enemy_health_multiplier
+		zone_damage_mult = zone.enemy_damage_multiplier
+		zone_speed_mult = zone.enemy_speed_multiplier
+		
+		# Colora nemico con tinta della zona
+		if enemy.has_node("Sprite2D"):
+			var sprite := enemy.get_node("Sprite2D") as Sprite2D
+			if sprite:
+				sprite.modulate = sprite.modulate.lerp(zone.glow_color, 0.2)
+	
+	enemy.max_health *= wave_multiplier * zone_health_mult
+	enemy.damage *= wave_multiplier * zone_damage_mult
+	enemy.move_speed *= (1.0 + (current_wave - 1) * 0.02) * zone_speed_mult
 	
 	# Traccia e aggiungi alla scena
 	enemy.died.connect(_on_enemy_died)
