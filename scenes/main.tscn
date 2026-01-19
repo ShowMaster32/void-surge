@@ -1,0 +1,26 @@
+[gd_scene load_steps=5 format=3 uid="uid://main001"]
+
+[ext_resource type="PackedScene" uid="uid://player001" path="res://scenes/player/player.tscn" id="1_player"]
+[ext_resource type="PackedScene" uid="uid://projectile001" path="res://scenes/projectiles/projectile.tscn" id="2_projectile"]
+[ext_resource type="PackedScene" uid="uid://enemy001" path="res://scenes/enemies/enemy.tscn" id="3_enemy"]
+[ext_resource type="Script" path="res://scripts/systems/enemy_spawner.gd" id="4_spawner"]
+
+[node name="Main" type="Node2D"]
+
+[node name="Background" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -2000.0
+offset_top = -2000.0
+offset_right = 2000.0
+offset_bottom = 2000.0
+color = Color(0.05, 0.02, 0.1, 1)
+
+[node name="Player" parent="." instance=ExtResource("1_player")]
+position = Vector2(960, 540)
+projectile_scene = ExtResource("2_projectile")
+
+[node name="EnemySpawner" type="Node2D" parent="."]
+script = ExtResource("4_spawner")
+enemy_scene = ExtResource("3_enemy")
