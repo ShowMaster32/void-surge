@@ -63,6 +63,10 @@ func _on_area_entered(area: Area2D) -> void:
 func _hit_enemy(enemy: Node2D) -> void:
 	enemies_hit.append(enemy)
 	
+	# Effetto hit
+	if is_instance_valid(VFX):
+		VFX.spawn_hit_effect(global_position, PROJECTILE_COLORS[owner_player_id % PROJECTILE_COLORS.size()])
+	
 	# Infliggi danno
 	if enemy.has_method("take_damage"):
 		enemy.take_damage(damage)

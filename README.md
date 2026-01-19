@@ -58,17 +58,23 @@ git merge feature/nome-feature
 
 ## 📋 Roadmap MVP
 
+### Obiettivo #1: Core Gameplay Loop ✅
 - [x] Setup progetto Godot
-- [x] Movimento giocatore
-- [x] Sistema di sparo
-- [x] Nemico base con AI
-- [x] Enemy spawner con wave
-- [x] HUD base
-- [ ] Sistema equipaggiamenti
-- [ ] Generazione procedurale zone
-- [ ] Co-op split screen
-- [ ] Menu principale
-- [ ] Audio SFX/Music
+- [x] Movimento giocatore (WASD smooth)
+- [x] Sistema di sparo (mouse aim)
+- [x] Nemico base con AI (patrol/chase/attack)
+- [x] Enemy spawner con wave scaling
+- [x] HUD (HP, wave, timer, kills)
+- [x] Death screen con stats finali
+- [x] Pause menu con settings audio
+- [x] VFX system (hit/death particles)
+- [x] Input controller support
+
+### Prossimi Obiettivi
+- [ ] **#2** Generazione procedurale 5 zone
+- [ ] **#3** Sistema equipaggiamenti + sinergie  
+- [ ] **#4** Meta-progression (personaggi/talenti)
+- [ ] **#5** Co-op split screen
 
 ## 🚀 Come Avviare
 

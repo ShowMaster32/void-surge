@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3 uid="uid://main001"]
+[gd_scene load_steps=10 format=3 uid="uid://main001"]
 
 [ext_resource type="PackedScene" uid="uid://player001" path="res://scenes/player/player.tscn" id="1_player"]
 [ext_resource type="PackedScene" uid="uid://projectile001" path="res://scenes/projectiles/projectile.tscn" id="2_projectile"]
@@ -6,6 +6,8 @@
 [ext_resource type="Script" path="res://scripts/systems/enemy_spawner.gd" id="4_spawner"]
 [ext_resource type="PackedScene" uid="uid://hud001" path="res://scenes/ui/hud.tscn" id="5_hud"]
 [ext_resource type="Script" path="res://scripts/systems/main_controller.gd" id="6_main"]
+[ext_resource type="PackedScene" uid="uid://death001" path="res://scenes/ui/death_screen.tscn" id="7_death"]
+[ext_resource type="PackedScene" uid="uid://pause001" path="res://scenes/ui/pause_menu.tscn" id="8_pause"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("6_main")
@@ -29,3 +31,7 @@ script = ExtResource("4_spawner")
 enemy_scene = ExtResource("3_enemy")
 
 [node name="HUD" parent="." instance=ExtResource("5_hud")]
+
+[node name="PauseMenu" parent="." instance=ExtResource("8_pause")]
+
+[node name="DeathScreen" parent="." instance=ExtResource("7_death")]

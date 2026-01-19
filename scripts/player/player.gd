@@ -155,7 +155,9 @@ func heal(amount: float) -> void:
 
 func die() -> void:
 	died.emit()
-	# Effetto morte (da implementare)
+	# Effetto morte
+	if is_instance_valid(VFX):
+		VFX.spawn_death_effect(global_position, PLAYER_COLORS[player_id % PLAYER_COLORS.size()])
 	queue_free()
 
 

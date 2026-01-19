@@ -169,7 +169,9 @@ func take_damage(amount: float) -> void:
 func die() -> void:
 	GameManager.add_kill()
 	died.emit(self)
-	# Effetto morte + drop (da implementare)
+	# Effetto morte
+	if is_instance_valid(VFX):
+		VFX.spawn_death_effect(global_position, ENEMY_COLORS[randi() % ENEMY_COLORS.size()])
 	queue_free()
 
 
