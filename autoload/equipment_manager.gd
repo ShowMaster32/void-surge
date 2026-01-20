@@ -1,5 +1,4 @@
 extends Node
-class_name EquipmentManager
 ## EquipmentManager - Gestisce inventario equipaggiamenti e sinergie
 ## Autoload singleton
 
@@ -206,7 +205,7 @@ func _check_synergies() -> void:
 		var current_count: int = element_counts.get(element, 0)
 		
 		var is_active := current_count >= required
-		var was_active := synergy_id in active_synergies
+		var was_active: bool = synergy_id in active_synergies
 		
 		if is_active and not was_active:
 			active_synergies.append(synergy_id)
