@@ -1,238 +1,344 @@
 extends CharacterBody2D
 class_name Player
-## Player - Void Operator controllabile
-## Supporta movimento WASD/stick, mira mouse/stick destro, sparo
+## Player - Personaggio giocabile con supporto co-op (0-3)
+## Integra: MetaManager (stats base), EquipmentManager (bonus run),
+##           GameManager (co-op synergy), InputManager (multi-device)
 
-signal health_changed(current: float, max_health: float)
-signal died
+signal died(player: Player)
+signal health_changed(current: float, max_hp: float)
+signal killed_enemy  ## emesso per tracking Plasma Nova
 
-# Identificatore giocatore per co-op (0-3)
+# Colori neon per co-op
+const PLAYER_COLORS: Array[Color] = [
+	Color(0.0, 1.0, 1.0),  # Cyan   (P1)
+	Color(1.0, 0.2, 1.0),  # Magenta(P2)
+	Color(0.2, 1.0, 0.2),  # Verde  (P3)
+	Color(1.0, 1.0, 0.0),  # Giallo (P4)
+]
+
 @export var player_id: int = 0
 
-# Stats base
-@export_group("Stats")
-@export var max_health: float = 100.0
-@export var base_move_speed: float = 300.0
-@export var acceleration: float = 2000.0
-@export var friction: float = 1500.0
+# Stats base (sovrascritte da apply_meta_stats)
+@export_group("Base Stats")
+@export var base_max_health: float   = 100.0
+@export var base_move_speed: float   = 300.0
+@export var base_damage: float       = 20.0
+@export var base_fire_rate: float    = 0.15  ## Secondi tra spari
+@export var base_crit_chance: float  = 0.05
 
-# Combat
-@export_group("Combat")
-@export var base_fire_rate: float = 0.15  # Secondi tra spari
-@export var base_damage: float = 10.0
-@export var projectile_scene: PackedScene
-
-# Stats modificate da equipment
-var move_speed: float
-var fire_rate: float
-var damage_multiplier: float = 1.0
-var crit_chance: float = 0.0
-var crit_damage: float = 1.5  # Moltiplicatore base crit
-
-# Stato interno
+# Stats finali (calcolate da _recalculate_stats)
+var max_health: float
 var current_health: float
-var can_shoot: bool = true
-var aim_direction: Vector2 = Vector2.RIGHT
-var is_invincible: bool = false
+var move_speed: float
+var damage: float
+var fire_rate: float
+var crit_chance: float
 
-# Nodi
-@onready var sprite: Sprite2D = $Sprite2D
-@onready var collision_shape: CollisionShape2D = $CollisionShape2D
-@onready var muzzle: Marker2D = $Muzzle
-@onready var fire_rate_timer: Timer = $FireRateTimer
-@onready var invincibility_timer: Timer = $InvincibilityTimer
-@onready var hit_flash_timer: Timer = $HitFlashTimer
+# Bonus da MetaManager
+var _meta_damage_reduction: float  = 0.0
+var _meta_melee_bonus: float       = 0.0
+var _meta_proj_scale: float        = 1.0
+var _meta_plasma_nova: bool        = false
+var _meta_crit_storm: bool         = false
+var _meta_entropy: bool            = false
 
-# Colori per giocatori (neon style)
-const PLAYER_COLORS: Array[Color] = [
-	Color(0.0, 1.0, 1.0),    # P1: Cyan
-	Color(1.0, 0.2, 0.6),    # P2: Magenta
-	Color(0.4, 1.0, 0.4),    # P3: Green
-	Color(1.0, 0.8, 0.2),    # P4: Yellow
-]
+# Stato giocatore
+var is_dead: bool = false
+var _invincible: bool = false
+var _fire_timer: float = 0.0
+var _kills_this_run: int = 0  ## Per Plasma Nova (ogni 10 → AOE)
+
+# Fisica
+const ACCELERATION := 1200.0
+const FRICTION      := 900.0
+
+@onready var sprite: Sprite2D        = $Sprite2D
+@onready var collision: CollisionShape2D = $CollisionShape2D
+@onready var muzzle: Marker2D        = $Muzzle
+@onready var inv_timer: Timer        = $InvincibilityTimer
+@onready var camera: Camera2D        = $Camera2D  # Null in split screen
+
+@export var projectile_scene: PackedScene
 
 
 func _ready() -> void:
-	current_health = max_health
-	move_speed = base_move_speed
-	fire_rate = base_fire_rate
 	add_to_group("players")
-	
-	# Setup timer
-	fire_rate_timer.wait_time = fire_rate
-	fire_rate_timer.one_shot = true
-	fire_rate_timer.timeout.connect(_on_fire_rate_timer_timeout)
-	
-	invincibility_timer.one_shot = true
-	invincibility_timer.timeout.connect(_on_invincibility_timeout)
-	
-	hit_flash_timer.one_shot = true
-	hit_flash_timer.timeout.connect(_on_hit_flash_timeout)
-	
-	# Colore giocatore
+
+	# Colore personalizzato per co-op
 	if sprite:
-		sprite.modulate = PLAYER_COLORS[player_id % PLAYER_COLORS.size()]
-	
-	# Registra con GameManager
+		var col := MetaManager.get_active_color() if player_id == 0 \
+			else PLAYER_COLORS[clampi(player_id, 0, 3)]
+		sprite.modulate = col
+
+	inv_timer.wait_time = 0.5
+	inv_timer.one_shot = true
+	inv_timer.timeout.connect(_on_inv_timer_timeout)
+
+	# Applica stats da MetaManager + EquipmentManager
+	_recalculate_stats()
+
+	current_health = max_health
+
+	# Disabilita camera built-in se SplitScreenManager è attivo
+	_check_disable_builtin_camera()
+
 	GameManager.register_player(self)
-	
-	# Connetti a equipment stats
-	EquipmentManager.equipment_stats_changed.connect(_on_equipment_stats_changed)
-	_apply_equipment_stats()
+	GameManager.coop_synergy_active.connect(_on_coop_synergy_changed)
+	EquipmentManager.stats_changed.connect(_recalculate_stats)
 
 
-func _exit_tree() -> void:
-	GameManager.unregister_player(self)
+## Disabilita la Camera2D interna se il SplitScreenManager gestisce le camere
+func _check_disable_builtin_camera() -> void:
+	if camera == null:
+		return
+	var ssm := get_tree().get_first_node_in_group("split_screen_manager")
+	if ssm and GameManager.player_count > 1:
+		camera.enabled = false
 
 
+# ---------------------------------------------------------------------------
+# STATS
+# ---------------------------------------------------------------------------
+func _recalculate_stats() -> void:
+	# 1. Base dal personaggio
+	var meta_stats := MetaManager.get_active_stats() if player_id == 0 \
+		else _get_default_meta_stats()
+
+	max_health   = meta_stats.get("max_health",    base_max_health)
+	move_speed   = meta_stats.get("move_speed",    base_move_speed)
+	damage       = base_damage * meta_stats.get("damage_mult", 1.0)
+	fire_rate    = base_fire_rate / meta_stats.get("fire_rate_mult", 1.0)
+	crit_chance  = meta_stats.get("crit_chance",   base_crit_chance)
+
+	_meta_damage_reduction = meta_stats.get("damage_reduction",   0.0)
+	_meta_melee_bonus      = meta_stats.get("melee_damage_bonus", 0.0)
+	_meta_proj_scale       = meta_stats.get("projectile_scale",   1.0)
+	_meta_plasma_nova      = meta_stats.get("plasma_nova_enabled", false)
+	_meta_crit_storm       = meta_stats.get("crit_storm_enabled",  false)
+	_meta_entropy          = meta_stats.get("entropy_enabled",     false)
+
+	# 2. Bonus da Equipment (bonus cumulativi della run corrente)
+	var eq_stats := EquipmentManager.get_cached_stats()
+	damage       += eq_stats.get("damage_bonus",    0.0)
+	move_speed   += eq_stats.get("speed_bonus",     0.0)
+	fire_rate    = maxf(fire_rate - eq_stats.get("fire_rate_bonus", 0.0), 0.05)
+	crit_chance  = minf(crit_chance + eq_stats.get("crit_bonus",   0.0), 0.95)
+	max_health   += eq_stats.get("health_bonus",    0.0)
+
+	# Clamp
+	move_speed   = maxf(move_speed, 50.0)
+	damage       = maxf(damage, 1.0)
+
+	# Aggiorna health corrente proporzionalmente
+	if current_health > 0:
+		current_health = minf(current_health, max_health)
+
+	health_changed.emit(current_health, max_health)
+
+
+## Per i player P2-P4 in co-op usiamo stats base (no meta individuale per MVP)
+func _get_default_meta_stats() -> Dictionary:
+	return {
+		"max_health":    100.0,
+		"move_speed":    300.0,
+		"damage_mult":   1.0,
+		"fire_rate_mult": 1.0,
+		"crit_chance":   0.05,
+		"damage_reduction":   0.0,
+		"melee_damage_bonus": 0.0,
+		"projectile_scale":   1.0,
+	}
+
+
+## Chiamato da MainController dopo lo spawn, applica colore personaggio
+func apply_character_color(char_id: String) -> void:
+	if sprite and MetaManager.CHARACTERS.has(char_id):
+		sprite.modulate = MetaManager.CHARACTERS[char_id].get("color", Color.CYAN)
+
+
+# ---------------------------------------------------------------------------
+# FISICA & INPUT
+# ---------------------------------------------------------------------------
 func _physics_process(delta: float) -> void:
-	handle_movement(delta)
-	handle_aim()
-	handle_shooting()
-	handle_pause()
+	if is_dead or GameManager.current_state != GameManager.GameState.PLAYING:
+		return
+
+	_handle_movement(delta)
+	_handle_shooting(delta)
 	move_and_slide()
 
 
-func handle_movement(delta: float) -> void:
-	var input_vector := InputManager.get_movement_vector(player_id)
-	
-	if input_vector != Vector2.ZERO:
-		# Accelerazione verso la direzione input
-		velocity = velocity.move_toward(input_vector * move_speed, acceleration * delta)
+func _handle_movement(delta: float) -> void:
+	var move_vec := InputManager.get_movement_vector(player_id)
+
+	if move_vec.length_squared() > 0.0:
+		velocity = velocity.move_toward(move_vec * move_speed, ACCELERATION * delta)
 	else:
-		# Frizione quando non c'è input
-		velocity = velocity.move_toward(Vector2.ZERO, friction * delta)
+		velocity = velocity.move_toward(Vector2.ZERO, FRICTION * delta)
+
+	if sprite and velocity.x != 0:
+		sprite.flip_h = velocity.x < 0
 
 
-func handle_aim() -> void:
-	aim_direction = InputManager.get_aim_vector(player_id, global_position)
-	
-	# Ruota il muzzle nella direzione di mira
-	if muzzle:
-		muzzle.rotation = aim_direction.angle()
-	
-	# Flip sprite basato sulla direzione
-	if sprite and aim_direction.x != 0:
-		sprite.flip_h = aim_direction.x < 0
-
-
-func handle_shooting() -> void:
-	if InputManager.is_shooting(player_id) and can_shoot:
-		shoot()
-
-
-func handle_pause() -> void:
-	if InputManager.is_pause_pressed(player_id):
-		GameManager.toggle_pause()
-
-
-func shoot() -> void:
-	if not projectile_scene:
-		push_warning("Player %d: projectile_scene non assegnata!" % player_id)
+func _handle_shooting(delta: float) -> void:
+	_fire_timer -= delta
+	if _fire_timer > 0.0:
 		return
-	
-	can_shoot = false
-	fire_rate_timer.start()
-	
-	# Spawn proiettile
+	if not InputManager.is_shooting(player_id):
+		return
+
+	_fire_timer = fire_rate
+	_shoot()
+
+
+func _shoot() -> void:
+	if not projectile_scene or not muzzle:
+		return
+
+	var aim_dir := InputManager.get_aim_vector(player_id, get_viewport())
+	if aim_dir == Vector2.ZERO:
+		aim_dir = Vector2.RIGHT
+
 	var projectile := projectile_scene.instantiate()
 	projectile.global_position = muzzle.global_position
-	projectile.direction = aim_direction
-	projectile.owner_player_id = player_id
-	
-	# Applica bonus equipment
-	var equip_stats := EquipmentManager.get_all_stats()
-	projectile.damage = base_damage * damage_multiplier
-	projectile.pierce_count = int(equip_stats.get("pierce_bonus", 0))
-	projectile.speed *= (1.0 + equip_stats.get("projectile_speed_bonus", 0.0))
-	projectile.crit_chance = crit_chance
-	projectile.crit_damage = crit_damage
-	
-	# Bonus sinergie
-	projectile.burn_damage = equip_stats.get("burn_damage", 0.0)
-	projectile.pierce_damage_mult = equip_stats.get("pierce_damage_mult", 0.0)
-	
-	# Aggiungi alla scena
+	projectile.rotation = aim_dir.angle()
+
+	# Calcola danno finale con: base + coop synergy + melee bonus + crit
+	var final_damage := _calculate_shot_damage()
+	var eq_stats := EquipmentManager.get_cached_stats()
+	var pierce   := eq_stats.get("pierce_count", 0) as int
+
+	if projectile.has_method("setup"):
+		projectile.setup(final_damage, pierce, _meta_proj_scale)
+
 	get_tree().current_scene.add_child(projectile)
 
 
-func _on_equipment_stats_changed(_stats: Dictionary) -> void:
-	_apply_equipment_stats()
+func _calculate_shot_damage() -> float:
+	var d := damage
+
+	# Co-op synergy bonus (+10% se vicino a partner)
+	d *= (1.0 + GameManager.get_coop_damage_bonus())
+
+	# Melee bonus (sentinel) — se c'è un nemico vicino
+	if _meta_melee_bonus > 0.0 and _has_nearby_enemy(100.0):
+		d *= (1.0 + _meta_melee_bonus)
+
+	# Crit
+	var is_crit := randf() < crit_chance
+	if is_crit:
+		d *= 2.0
+		if _meta_crit_storm:
+			MetaManager.on_crit_hit()
+			d *= (1.0 + MetaManager.get_crit_storm_bonus())
+	else:
+		if _meta_crit_storm:
+			MetaManager.on_non_crit_hit()
+
+	GameManager.add_damage(d)
+	return d
 
 
-func _apply_equipment_stats() -> void:
-	## Applica bonus degli equipaggiamenti
-	var stats := EquipmentManager.get_all_stats()
-	
-	# Movimento
-	move_speed = base_move_speed * (1.0 + stats.get("move_speed_bonus", 0.0))
-	
-	# Combattimento
-	damage_multiplier = 1.0 + stats.get("damage_bonus", 0.0)
-	crit_chance = stats.get("crit_chance_bonus", 0.0)
-	crit_damage = 1.5 + stats.get("crit_damage_bonus", 0.0)
-	
-	# Fire rate (più basso = più veloce)
-	var fire_rate_mult := 1.0 / (1.0 + stats.get("fire_rate_bonus", 0.0))
-	fire_rate = base_fire_rate * fire_rate_mult
-	fire_rate_timer.wait_time = fire_rate
-	
-	# HP bonus
-	var hp_bonus: float = stats.get("health_bonus", 0.0)
-	if hp_bonus > 0:
-		var old_max := max_health
-		max_health = 100.0 + hp_bonus
-		# Scala HP corrente proporzionalmente
-		if old_max > 0:
-			current_health = current_health * (max_health / old_max)
-		health_changed.emit(current_health, max_health)
+func _has_nearby_enemy(radius: float) -> bool:
+	for enemy in get_tree().get_nodes_in_group("enemies"):
+		if global_position.distance_to(enemy.global_position) <= radius:
+			return true
+	return false
 
 
+# ---------------------------------------------------------------------------
+# DANNO & MORTE
+# ---------------------------------------------------------------------------
 func take_damage(amount: float) -> void:
-	if is_invincible:
+	if is_dead or _invincible:
 		return
-	
-	current_health = maxf(current_health - amount, 0)
+
+	# Riduzione danno da talento sentinel
+	var reduced := amount * (1.0 - _meta_damage_reduction)
+	current_health = maxf(current_health - reduced, 0.0)
 	health_changed.emit(current_health, max_health)
-	
-	# Effetto flash
-	_start_hit_flash()
-	
-	# Breve invincibilità dopo danno
-	is_invincible = true
-	invincibility_timer.start(0.5)
-	
-	if current_health <= 0:
-		die()
+
+	# Flash bianco
+	if sprite:
+		sprite.modulate = Color.WHITE
+		await get_tree().create_timer(0.05).timeout
+		if not is_dead and sprite:
+			sprite.modulate = PLAYER_COLORS[clampi(player_id, 0, 3)]
+
+	_invincible = true
+	inv_timer.start()
+
+	if current_health <= 0.0:
+		_die()
 
 
 func heal(amount: float) -> void:
+	if is_dead:
+		return
 	current_health = minf(current_health + amount, max_health)
 	health_changed.emit(current_health, max_health)
 
 
-func die() -> void:
-	died.emit()
-	# Effetto morte
-	if is_instance_valid(VFX):
-		VFX.spawn_death_effect(global_position, PLAYER_COLORS[player_id % PLAYER_COLORS.size()])
-	queue_free()
-
-
-func _start_hit_flash() -> void:
+func _die() -> void:
+	is_dead = true
+	died.emit(self)
+	GameManager.unregister_player(self)
+	collision.set_deferred("disabled", true)
 	if sprite:
-		sprite.modulate = Color.WHITE
-		hit_flash_timer.start(0.1)
+		sprite.visible = false
 
 
-func _on_fire_rate_timer_timeout() -> void:
-	can_shoot = true
+func _on_inv_timer_timeout() -> void:
+	_invincible = false
 
 
-func _on_invincibility_timeout() -> void:
-	is_invincible = false
-
-
-func _on_hit_flash_timeout() -> void:
+# ---------------------------------------------------------------------------
+# CO-OP SYNERGY
+# ---------------------------------------------------------------------------
+func _on_coop_synergy_changed(active: bool) -> void:
+	# Effetto visivo: leggero glow quando synergy attiva
 	if sprite:
-		sprite.modulate = PLAYER_COLORS[player_id % PLAYER_COLORS.size()]
+		var base_col := PLAYER_COLORS[clampi(player_id, 0, 3)]
+		sprite.modulate = base_col.lightened(0.25) if active else base_col
+
+
+# ---------------------------------------------------------------------------
+# SPECIALI TALENTI RUNTIME
+# ---------------------------------------------------------------------------
+
+## Plasma Nova: ogni 10 kill → AOE
+func on_kill() -> void:
+	_kills_this_run += 1
+	killed_enemy.emit()
+
+	# Entropy: accumula bonus
+	if _meta_entropy:
+		MetaManager.on_enemy_killed_for_entropy()
+
+	# Plasma Nova
+	if _meta_plasma_nova and _kills_this_run % 10 == 0:
+		_trigger_plasma_nova()
+
+
+func _trigger_plasma_nova() -> void:
+	## Danno AOE attorno al giocatore
+	var nova_radius := 200.0
+	var nova_damage := damage * 3.0
+	for enemy in get_tree().get_nodes_in_group("enemies"):
+		if global_position.distance_to(enemy.global_position) <= nova_radius:
+			if enemy.has_method("take_damage"):
+				enemy.take_damage(nova_damage)
+
+	# VFX
+	var vfx := get_node_or_null("/root/VFX")
+	if vfx:
+		vfx.spawn_death_effect(global_position, Color(1.0, 0.5, 0.0))
+
+
+func _input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel") or \
+	   (event is InputEventJoypadButton and
+	    event.button_index == JOY_BUTTON_START and
+	    event.pressed):
+		if player_id == 0 or GameManager.player_count > 1:
+			GameManager.toggle_pause()
