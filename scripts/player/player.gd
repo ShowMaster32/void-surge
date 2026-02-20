@@ -66,7 +66,7 @@ func _ready() -> void:
 
 	# Colore personalizzato per co-op
 	if sprite:
-		var col := MetaManager.get_active_color() if player_id == 0 \
+		var col: Color = MetaManager.get_active_color() if player_id == 0 \
 			else PLAYER_COLORS[clampi(player_id, 0, 3)]
 		sprite.modulate = col
 
@@ -84,7 +84,7 @@ func _ready() -> void:
 
 	GameManager.register_player(self)
 	GameManager.coop_synergy_active.connect(_on_coop_synergy_changed)
-	EquipmentManager.stats_changed.connect(_recalculate_stats)
+	EquipmentManager.equipment_stats_changed.connect(_recalculate_stats)
 
 
 ## Disabilita la Camera2D interna se il SplitScreenManager gestisce le camere
@@ -101,7 +101,7 @@ func _check_disable_builtin_camera() -> void:
 # ---------------------------------------------------------------------------
 func _recalculate_stats() -> void:
 	# 1. Base dal personaggio
-	var meta_stats := MetaManager.get_active_stats() if player_id == 0 \
+	var meta_stats: Dictionary = MetaManager.get_active_stats() if player_id == 0 \
 		else _get_default_meta_stats()
 
 	max_health   = meta_stats.get("max_health",    base_max_health)
@@ -118,7 +118,7 @@ func _recalculate_stats() -> void:
 	_meta_entropy          = meta_stats.get("entropy_enabled",     false)
 
 	# 2. Bonus da Equipment (bonus cumulativi della run corrente)
-	var eq_stats := EquipmentManager.get_cached_stats()
+	var eq_stats: Dictionary = EquipmentManager.get_all_stats()
 	damage       += eq_stats.get("damage_bonus",    0.0)
 	move_speed   += eq_stats.get("speed_bonus",     0.0)
 	fire_rate    = maxf(fire_rate - eq_stats.get("fire_rate_bonus", 0.0), 0.05)
@@ -169,7 +169,7 @@ func _physics_process(delta: float) -> void:
 
 
 func _handle_movement(delta: float) -> void:
-	var move_vec := InputManager.get_movement_vector(player_id)
+	var move_vec: Vector2 = InputManager.get_movement_vector(player_id)
 
 	if move_vec.length_squared() > 0.0:
 		velocity = velocity.move_toward(move_vec * move_speed, ACCELERATION * delta)
@@ -195,23 +195,44 @@ func _shoot() -> void:
 	if not projectile_scene or not muzzle:
 		return
 
-	var aim_dir := InputManager.get_aim_vector(player_id, get_viewport())
-	if aim_dir == Vector2.ZERO:
+	var aim_dir: Vector2 = _get_aim_direction()
+	if aim_dir.length_squared() < 0.01:
 		aim_dir = Vector2.RIGHT
 
-	var projectile := projectile_scene.instantiate()
-	projectile.global_position = muzzle.global_position
-	projectile.rotation = aim_dir.angle()
+	var projectile: Projectile = projectile_scene.instantiate()
+	projectile.global_position   = muzzle.global_position
+	projectile.direction         = aim_dir   # ← il proiettile usa direction, non rotation
+	projectile.owner_player_id   = player_id
 
-	# Calcola danno finale con: base + coop synergy + melee bonus + crit
+	# Danno, pierce e scala dalla run corrente
 	var final_damage := _calculate_shot_damage()
-	var eq_stats := EquipmentManager.get_cached_stats()
-	var pierce   := eq_stats.get("pierce_count", 0) as int
+	var eq_stats: Dictionary    = EquipmentManager.get_all_stats()
+	projectile.damage           = final_damage
+	projectile.pierce_count     = eq_stats.get("pierce_count", 0)
+	projectile.scale            = Vector2(_meta_proj_scale, _meta_proj_scale)
 
-	if projectile.has_method("setup"):
-		projectile.setup(final_damage, pierce, _meta_proj_scale)
+	# Bonus sinergie equipment
+	projectile.crit_chance        = eq_stats.get("crit_bonus", 0.0)
+	projectile.burn_damage        = eq_stats.get("burn_damage", 0.0)
+	projectile.pierce_damage_mult = eq_stats.get("pierce_damage_mult", 0.0)
 
 	get_tree().current_scene.add_child(projectile)
+
+
+## Calcola la direzione di mira in base al dispositivo del player.
+## Per keyboard+mouse: usa get_global_mouse_position() direttamente sul Node2D
+## (metodo CanvasItem — sempre corretto nel world space, nessuna conversione).
+## Per controller: usa InputManager per lo stick destro.
+func _get_aim_direction() -> Vector2:
+	var device: int = InputManager.player_to_device.get(player_id, InputManager.KEYBOARD_MOUSE_DEVICE)
+	var dir: Vector2
+	if device == InputManager.KEYBOARD_MOUSE_DEVICE:
+		dir = get_global_mouse_position() - global_position
+	else:
+		dir = InputManager.get_aim_vector(player_id, global_position)
+	if dir.length_squared() < 0.01:
+		return Vector2.RIGHT
+	return dir.normalized()
 
 
 func _calculate_shot_damage() -> float:
@@ -338,7 +359,7 @@ func _trigger_plasma_nova() -> void:
 func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel") or \
 	   (event is InputEventJoypadButton and
-	    event.button_index == JOY_BUTTON_START and
-	    event.pressed):
+		event.button_index == JOY_BUTTON_START and
+		event.pressed):
 		if player_id == 0 or GameManager.player_count > 1:
 			GameManager.toggle_pause()
