@@ -1,0 +1,280 @@
+[gd_scene format=3 uid="uid://bbaym4xccpdie"]
+
+[ext_resource type="Script" path="res://scripts/ui/start_screen.gd" id="1_start"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_overlay"]
+bg_color = Color(0.0, 0.0, 0.04, 0.97)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.05, 0.02, 0.12, 0.98)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0, 1, 1, 0.8)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_section"]
+bg_color = Color(0.03, 0.01, 0.08, 0.9)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0, 0.6, 0.6, 0.4)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_start_normal"]
+bg_color = Color(0.0, 0.5, 0.5, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0, 1, 1, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_start_hover"]
+bg_color = Color(0.0, 0.7, 0.7, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.5, 1, 1, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[node name="StartScreen" type="CanvasLayer"]
+layer = 100
+script = ExtResource("1_start")
+
+[node name="BgOverlay" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0, 0, 0.02, 0.96)
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="MainPanel" type="PanelContainer" parent="CenterContainer"]
+custom_minimum_size = Vector2(760, 0)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="MarginContainer" type="MarginContainer" parent="CenterContainer/MainPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 40
+theme_override_constants/margin_top = 32
+theme_override_constants/margin_right = 40
+theme_override_constants/margin_bottom = 32
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer/MainPanel/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="TitleLabel" type="Label" parent="CenterContainer/MainPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 1, 1, 1)
+theme_override_colors/font_shadow_color = Color(0, 0.5, 0.5, 0.6)
+theme_override_font_sizes/font_size = 56
+text = "VOID SURGE"
+horizontal_alignment = 1
+
+[node name="TaglineLabel" type="Label" parent="CenterContainer/MainPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.6, 0.8, 1)
+theme_override_font_sizes/font_size = 16
+text = "An endless roguelike survival — how long can you last?"
+horizontal_alignment = 1
+
+[node name="HBoxSections" type="HBoxContainer" parent="CenterContainer/MainPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="ObjectivePanel" type="PanelContainer" parent="CenterContainer/MainPanel/MarginContainer/VBoxContainer/HBoxSections"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_section")
+
+[node name="ObjMargin" type="MarginContainer" parent="CenterContainer/MainPanel/MarginContainer/VBoxContainer/HBoxSections/ObjectivePanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 12
+
+[node name="ObjBox" type="VBoxContainer" parent="CenterContainer/MainPanel/MarginContainer/VBoxContainer/HBoxSections/ObjectivePanel/ObjMargin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ObjTitle" type="Label" parent="CenterContainer/MainPanel/MarginContainer/VBoxContainer/HBoxSections/ObjectivePanel/ObjMargin/ObjBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 1, 1, 0.9)
+theme_override_font_sizes/font_size = 15
+text = "OBIETTIVI"
+
+[node name="ObjDivider" type="ColorRect" parent="CenterContainer/MainPanel/MarginContainer/VBoxContainer/HBoxSections/ObjectivePanel/ObjMargin/ObjBox"]
+custom_minimum_size = Vector2(0, 1)
+layout_mode = 2
+color = Color(0, 0.7, 0.7, 0.4)
+
+[node name="Obj1" type="Label" parent="CenterContainer/MainPanel/MarginContainer/VBoxContainer/HBoxSections/ObjectivePanel/ObjMargin/ObjBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.85, 0.85, 1)
+theme_override_font_sizes/font_size = 14
+text = "Sopravvivi il piu' a lungo possibile"
+autowrap_mode = 2
+
+[node name="Obj2" type="Label" parent="CenterContainer/MainPanel/MarginContainer/VBoxContainer/HBoxSections/ObjectivePanel/ObjMargin/ObjBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.85, 0.85, 1)
+theme_override_font_sizes/font_size = 14
+text = "Uccidi nemici per guadagnare Souls"
+autowrap_mode = 2
+
+[node name="Obj3" type="Label" parent="CenterContainer/MainPanel/MarginContainer/VBoxContainer/HBoxSections/ObjectivePanel/ObjMargin/ObjBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.85, 0.85, 1)
+theme_override_font_sizes/font_size = 14
+text = "Ogni 30 secondi arriva una nuova WAVE, sempre piu' difficile"
+autowrap_mode = 2
+
+[node name="Obj4" type="Label" parent="CenterContainer/MainPanel/MarginContainer/VBoxContainer/HBoxSections/ObjectivePanel/ObjMargin/ObjBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.85, 0.85, 1)
+theme_override_font_sizes/font_size = 14
+text = "Ogni 3 wave cambia zona: nuovi nemici, nuovi hazard ambientali"
+autowrap_mode = 2
+
+[node name="Obj5" type="Label" parent="CenterContainer/MainPanel/MarginContainer/VBoxContainer/HBoxSections/ObjectivePanel/ObjMargin/ObjBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.5, 1.0, 1)
+theme_override_font_sizes/font_size = 13
+text = "Usa i Souls guadagnati per sbloccare personaggi e talenti tra una run e l'altra"
+autowrap_mode = 2
+
+[node name="ControlsPanel" type="PanelContainer" parent="CenterContainer/MainPanel/MarginContainer/VBoxContainer/HBoxSections"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_section")
+
+[node name="CtrlMargin" type="MarginContainer" parent="CenterContainer/MainPanel/MarginContainer/VBoxContainer/HBoxSections/ControlsPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 12
+
+[node name="CtrlBox" type="VBoxContainer" parent="CenterContainer/MainPanel/MarginContainer/VBoxContainer/HBoxSections/ControlsPanel/CtrlMargin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="CtrlTitle" type="Label" parent="CenterContainer/MainPanel/MarginContainer/VBoxContainer/HBoxSections/ControlsPanel/CtrlMargin/CtrlBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 1, 1, 0.9)
+theme_override_font_sizes/font_size = 15
+text = "CONTROLLI"
+
+[node name="CtrlDivider" type="ColorRect" parent="CenterContainer/MainPanel/MarginContainer/VBoxContainer/HBoxSections/ControlsPanel/CtrlMargin/CtrlBox"]
+custom_minimum_size = Vector2(0, 1)
+layout_mode = 2
+color = Color(0, 0.7, 0.7, 0.4)
+
+[node name="CtrlGrid" type="GridContainer" parent="CenterContainer/MainPanel/MarginContainer/VBoxContainer/HBoxSections/ControlsPanel/CtrlMargin/CtrlBox"]
+layout_mode = 2
+columns = 2
+theme_override_constants/h_separation = 20
+theme_override_constants/v_separation = 6
+
+[node name="CL1" type="Label" parent="CenterContainer/MainPanel/MarginContainer/VBoxContainer/HBoxSections/ControlsPanel/CtrlMargin/CtrlBox/CtrlGrid"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.6, 0.7, 1)
+theme_override_font_sizes/font_size = 14
+text = "Muoversi"
+
+[node name="CV1" type="Label" parent="CenterContainer/MainPanel/MarginContainer/VBoxContainer/HBoxSections/ControlsPanel/CtrlMargin/CtrlBox/CtrlGrid"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "W  A  S  D"
+
+[node name="CL2" type="Label" parent="CenterContainer/MainPanel/MarginContainer/VBoxContainer/HBoxSections/ControlsPanel/CtrlMargin/CtrlBox/CtrlGrid"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.6, 0.7, 1)
+theme_override_font_sizes/font_size = 14
+text = "Mirare"
+
+[node name="CV2" type="Label" parent="CenterContainer/MainPanel/MarginContainer/VBoxContainer/HBoxSections/ControlsPanel/CtrlMargin/CtrlBox/CtrlGrid"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "Mouse"
+
+[node name="CL3" type="Label" parent="CenterContainer/MainPanel/MarginContainer/VBoxContainer/HBoxSections/ControlsPanel/CtrlMargin/CtrlBox/CtrlGrid"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.6, 0.7, 1)
+theme_override_font_sizes/font_size = 14
+text = "Sparare"
+
+[node name="CV3" type="Label" parent="CenterContainer/MainPanel/MarginContainer/VBoxContainer/HBoxSections/ControlsPanel/CtrlMargin/CtrlBox/CtrlGrid"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "Click sinistro (hold)"
+
+[node name="CL4" type="Label" parent="CenterContainer/MainPanel/MarginContainer/VBoxContainer/HBoxSections/ControlsPanel/CtrlMargin/CtrlBox/CtrlGrid"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.6, 0.7, 1)
+theme_override_font_sizes/font_size = 14
+text = "Pausa"
+
+[node name="CV4" type="Label" parent="CenterContainer/MainPanel/MarginContainer/VBoxContainer/HBoxSections/ControlsPanel/CtrlMargin/CtrlBox/CtrlGrid"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "Escape"
+
+[node name="CL5" type="Label" parent="CenterContainer/MainPanel/MarginContainer/VBoxContainer/HBoxSections/ControlsPanel/CtrlMargin/CtrlBox/CtrlGrid"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.6, 0.7, 1)
+theme_override_font_sizes/font_size = 14
+text = "Controller"
+
+[node name="CV5" type="Label" parent="CenterContainer/MainPanel/MarginContainer/VBoxContainer/HBoxSections/ControlsPanel/CtrlMargin/CtrlBox/CtrlGrid"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 13
+text = "L.Stick/R.Stick/R1/Start"
+
+[node name="TipLabel" type="Label" parent="CenterContainer/MainPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.5, 0.5, 0.6, 1)
+theme_override_font_sizes/font_size = 13
+text = "I nemici droppano equipaggiamento. Raccoglilo per diventare piu' forte. Fai hover sulle icone per vedere le stats."
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="StartButton" type="Button" parent="CenterContainer/MainPanel/MarginContainer/VBoxContainer"]
+custom_minimum_size = Vector2(280, 54)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_colors/font_color = Color(0, 0.05, 0.05, 1)
+theme_override_colors/font_hover_color = Color(0, 0, 0, 1)
+theme_override_font_sizes/font_size = 22
+theme_override_styles/normal = SubResource("StyleBoxFlat_start_normal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_start_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_start_hover")
+theme_override_styles/focus = SubResource("StyleBoxFlat_start_hover")
+text = "INIZIA PARTITA"

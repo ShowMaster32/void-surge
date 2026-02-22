@@ -47,6 +47,7 @@ var is_dead: bool = false
 var _invincible: bool = false
 var _fire_timer: float = 0.0
 var _kills_this_run: int = 0  ## Per Plasma Nova (ogni 10 → AOE)
+var health_regen: float = 0.0  ## HP/sec da equipment (aggiornato da _recalculate_stats)
 
 # Fisica
 const ACCELERATION := 1200.0
@@ -124,6 +125,7 @@ func _recalculate_stats() -> void:
 	fire_rate    = maxf(fire_rate - eq_stats.get("fire_rate_bonus", 0.0), 0.05)
 	crit_chance  = minf(crit_chance + eq_stats.get("crit_bonus",   0.0), 0.95)
 	max_health   += eq_stats.get("health_bonus",    0.0)
+	health_regen  = eq_stats.get("health_regen",   0.0)
 
 	# Clamp
 	move_speed   = maxf(move_speed, 50.0)
@@ -166,6 +168,10 @@ func _physics_process(delta: float) -> void:
 	_handle_movement(delta)
 	_handle_shooting(delta)
 	move_and_slide()
+
+	# Rigenerazione HP da equipment (es. blazing_heart, armor pieces)
+	if health_regen > 0.0 and current_health < max_health:
+		heal(health_regen * delta)
 
 
 func _handle_movement(delta: float) -> void:

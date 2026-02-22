@@ -1,0 +1,7 @@
+[gd_scene format=3 uid="uid://notifier001"]
+
+[ext_resource type="Script" path="res://scripts/ui/milestone_notifier.gd" id="1_notifier"]
+
+[node name="MilestoneNotifier" type="CanvasLayer"]
+layer = 50
+script = ExtResource("1_notifier")

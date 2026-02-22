@@ -5,6 +5,7 @@ class_name ZoneGenerator
 
 signal zone_changed(zone_data: ZoneData)
 signal zone_generated(zone_id: String)
+signal hazard_hit(damage: float)   ## Emesso ogni volta che il danno ambientale colpisce i player
 
 @export var zone_size: Vector2 = Vector2(3000, 3000)
 @export var transition_duration: float = 1.5
@@ -89,6 +90,9 @@ func _setup_containers() -> void:
 	hazards_container.name = "Hazards"
 	hazards_container.z_index = -5
 	add_child(hazards_container)
+
+	# Muri invisibili ai bordi della zona
+	_generate_world_bounds()
 
 
 func generate_zone(zone_index: int, custom_seed: int = -1) -> void:
@@ -311,11 +315,15 @@ func _on_hazard_tick() -> void:
 	## Applica danno ambientale ai giocatori
 	if not current_zone or not current_zone.hazard_enabled:
 		return
-	
+
+	var hit_count := 0
 	for player in get_tree().get_nodes_in_group("players"):
 		if player.has_method("take_damage"):
-			# Danno ambientale ridotto, con feedback visivo
 			player.take_damage(current_zone.hazard_damage * 0.5)
+			hit_count += 1
+
+	if hit_count > 0:
+		hazard_hit.emit(current_zone.hazard_damage * 0.5)
 
 
 func _apply_zone_modifiers() -> void:
@@ -337,3 +345,34 @@ func get_zone_by_id(zone_id: String) -> ZoneData:
 		if zone.zone_id == zone_id:
 			return zone
 	return null
+
+
+func _generate_world_bounds() -> void:
+	## Crea 4 muri invisibili StaticBody2D ai bordi della zona
+	## Impedisce al giocatore di uscire oltre il background
+	var half_w := zone_size.x / 2.0
+	var half_h := zone_size.y / 2.0
+	var thickness := 120.0
+	var extra    := 240.0  # Sovrapposizione negli angoli per evitare buchi
+
+	# [posizione_centro, dimensione_rettangolo]
+	var wall_defs: Array = [
+		[Vector2(0.0, -half_h - thickness * 0.5), Vector2(zone_size.x + extra, thickness)],  # Top
+		[Vector2(0.0,  half_h + thickness * 0.5), Vector2(zone_size.x + extra, thickness)],  # Bottom
+		[Vector2(-half_w - thickness * 0.5, 0.0), Vector2(thickness, zone_size.y + extra)],  # Left
+		[Vector2( half_w + thickness * 0.5, 0.0), Vector2(thickness, zone_size.y + extra)],  # Right
+	]
+
+	for wall_def in wall_defs:
+		var wall := StaticBody2D.new()
+		wall.collision_layer = 64  # Layer 6: environment (stesso degli ostacoli)
+		wall.collision_mask  = 0
+
+		var col   := CollisionShape2D.new()
+		var shape := RectangleShape2D.new()
+		shape.size = wall_def[1]
+		col.shape  = shape
+		wall.add_child(col)
+
+		wall.position = wall_def[0]
+		add_child(wall)

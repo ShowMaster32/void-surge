@@ -38,6 +38,13 @@ corner_radius_top_right = 4
 corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_divider"]
+bg_color = Color(0, 0.8, 0.8, 0.3)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
 [node name="PauseMenu" type="CanvasLayer"]
 layer = 99
 script = ExtResource("1_pause")
@@ -54,13 +61,13 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 
 [node name="PanelContainer" type="PanelContainer" parent="CenterContainer"]
-custom_minimum_size = Vector2(300, 280)
+custom_minimum_size = Vector2(300, 310)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
 
 [node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer/PanelContainer"]
 layout_mode = 2
-theme_override_constants/separation = 15
+theme_override_constants/separation = 12
 
 [node name="TitleLabel" type="Label" parent="CenterContainer/PanelContainer/VBoxContainer"]
 layout_mode = 2
@@ -94,6 +101,19 @@ theme_override_styles/hover = SubResource("StyleBoxFlat_button_hover")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_button_hover")
 theme_override_styles/focus = SubResource("StyleBoxFlat_button_hover")
 text = "SETTINGS"
+
+[node name="ControlsButton" type="Button" parent="CenterContainer/PanelContainer/VBoxContainer"]
+custom_minimum_size = Vector2(200, 45)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 18
+theme_override_styles/normal = SubResource("StyleBoxFlat_button_normal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_button_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_button_hover")
+theme_override_styles/focus = SubResource("StyleBoxFlat_button_hover")
+text = "CONTROLS"
 
 [node name="QuitButton" type="Button" parent="CenterContainer/PanelContainer/VBoxContainer"]
 custom_minimum_size = Vector2(200, 45)
@@ -177,6 +197,168 @@ step = 0.05
 value = 1.0
 
 [node name="BackButton" type="Button" parent="CenterContainer/SettingsPanel/VBoxContainer"]
+custom_minimum_size = Vector2(150, 40)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 16
+theme_override_styles/normal = SubResource("StyleBoxFlat_button_normal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_button_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_button_hover")
+theme_override_styles/focus = SubResource("StyleBoxFlat_button_hover")
+text = "BACK"
+
+[node name="ControlsPanel" type="PanelContainer" parent="CenterContainer"]
+visible = false
+custom_minimum_size = Vector2(420, 380)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer/ControlsPanel"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="TitleLabel" type="Label" parent="CenterContainer/ControlsPanel/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 1, 1, 1)
+theme_override_font_sizes/font_size = 28
+text = "CONTROLS"
+horizontal_alignment = 1
+
+[node name="KBLabel" type="Label" parent="CenterContainer/ControlsPanel/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 1, 1, 0.7)
+theme_override_font_sizes/font_size = 13
+text = "KEYBOARD & MOUSE"
+horizontal_alignment = 1
+
+[node name="Divider1" type="PanelContainer" parent="CenterContainer/ControlsPanel/VBoxContainer"]
+custom_minimum_size = Vector2(0, 2)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_divider")
+
+[node name="KBGrid" type="GridContainer" parent="CenterContainer/ControlsPanel/VBoxContainer"]
+layout_mode = 2
+columns = 2
+theme_override_constants/h_separation = 24
+theme_override_constants/v_separation = 6
+
+[node name="L1" type="Label" parent="CenterContainer/ControlsPanel/VBoxContainer/KBGrid"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 14
+text = "Move"
+
+[node name="V1" type="Label" parent="CenterContainer/ControlsPanel/VBoxContainer/KBGrid"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "W  A  S  D"
+
+[node name="L2" type="Label" parent="CenterContainer/ControlsPanel/VBoxContainer/KBGrid"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 14
+text = "Aim"
+
+[node name="V2" type="Label" parent="CenterContainer/ControlsPanel/VBoxContainer/KBGrid"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "Mouse"
+
+[node name="L3" type="Label" parent="CenterContainer/ControlsPanel/VBoxContainer/KBGrid"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 14
+text = "Shoot"
+
+[node name="V3" type="Label" parent="CenterContainer/ControlsPanel/VBoxContainer/KBGrid"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "Left Click"
+
+[node name="L4" type="Label" parent="CenterContainer/ControlsPanel/VBoxContainer/KBGrid"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 14
+text = "Pause"
+
+[node name="V4" type="Label" parent="CenterContainer/ControlsPanel/VBoxContainer/KBGrid"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "Escape"
+
+[node name="CtrlLabel" type="Label" parent="CenterContainer/ControlsPanel/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 1, 1, 0.7)
+theme_override_font_sizes/font_size = 13
+text = "CONTROLLER"
+horizontal_alignment = 1
+
+[node name="Divider2" type="PanelContainer" parent="CenterContainer/ControlsPanel/VBoxContainer"]
+custom_minimum_size = Vector2(0, 2)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_divider")
+
+[node name="CtrlGrid" type="GridContainer" parent="CenterContainer/ControlsPanel/VBoxContainer"]
+layout_mode = 2
+columns = 2
+theme_override_constants/h_separation = 24
+theme_override_constants/v_separation = 6
+
+[node name="CL1" type="Label" parent="CenterContainer/ControlsPanel/VBoxContainer/CtrlGrid"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 14
+text = "Move"
+
+[node name="CV1" type="Label" parent="CenterContainer/ControlsPanel/VBoxContainer/CtrlGrid"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "Left Stick"
+
+[node name="CL2" type="Label" parent="CenterContainer/ControlsPanel/VBoxContainer/CtrlGrid"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 14
+text = "Aim"
+
+[node name="CV2" type="Label" parent="CenterContainer/ControlsPanel/VBoxContainer/CtrlGrid"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "Right Stick"
+
+[node name="CL3" type="Label" parent="CenterContainer/ControlsPanel/VBoxContainer/CtrlGrid"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 14
+text = "Shoot"
+
+[node name="CV3" type="Label" parent="CenterContainer/ControlsPanel/VBoxContainer/CtrlGrid"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "R1 / RT"
+
+[node name="CL4" type="Label" parent="CenterContainer/ControlsPanel/VBoxContainer/CtrlGrid"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 14
+text = "Pause"
+
+[node name="CV4" type="Label" parent="CenterContainer/ControlsPanel/VBoxContainer/CtrlGrid"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "Start"
+
+[node name="ControlsBackButton" type="Button" parent="CenterContainer/ControlsPanel/VBoxContainer"]
 custom_minimum_size = Vector2(150, 40)
 layout_mode = 2
 size_flags_horizontal = 4

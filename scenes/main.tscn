@@ -1,4 +1,4 @@
-[gd_scene load_steps=14 format=3 uid="uid://main001"]
+[gd_scene load_steps=16 format=3 uid="uid://main001"]
 
 [ext_resource type="PackedScene" uid="uid://player001" path="res://scenes/player/player.tscn" id="1_player"]
 [ext_resource type="PackedScene" uid="uid://projectile001" path="res://scenes/projectiles/projectile.tscn" id="2_projectile"]
@@ -11,16 +11,16 @@
 [ext_resource type="Script" path="res://scripts/systems/zone_generator.gd" id="9_zone_gen"]
 [ext_resource type="PackedScene" uid="uid://zoneindicator001" path="res://scenes/ui/zone_indicator.tscn" id="10_zone_ind"]
 [ext_resource type="PackedScene" uid="uid://equipui001" path="res://scenes/ui/equipment_ui.tscn" id="11_equip_ui"]
+[ext_resource type="PackedScene" uid="uid://notifier001" path="res://scenes/ui/milestone_notifier.tscn" id="12_notifier"]
+[ext_resource type="PackedScene" uid="uid://startscreen001" path="res://scenes/ui/start_screen.tscn" id="13_start"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("6_main")
+player_scene = ExtResource("1_player")
+projectile_scene = ExtResource("2_projectile")
 
 [node name="ZoneGenerator" type="Node2D" parent="." groups=["zone_generator"]]
 script = ExtResource("9_zone_gen")
-
-[node name="Player" parent="." instance=ExtResource("1_player")]
-position = Vector2(960, 540)
-projectile_scene = ExtResource("2_projectile")
 
 [node name="EnemySpawner" type="Node2D" parent="."]
 script = ExtResource("4_spawner")
@@ -35,3 +35,7 @@ enemy_scene = ExtResource("3_enemy")
 [node name="PauseMenu" parent="." instance=ExtResource("8_pause")]
 
 [node name="DeathScreen" parent="." instance=ExtResource("7_death")]
+
+[node name="MilestoneNotifier" parent="." instance=ExtResource("12_notifier")]
+
+[node name="StartScreen" parent="." instance=ExtResource("13_start")]
