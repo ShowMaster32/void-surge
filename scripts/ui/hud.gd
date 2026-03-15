@@ -1,176 +1,581 @@
-extends CanvasLayer
-class_name HUD
-## HUD - Interfaccia in-game: health, wave, timer, kills, souls, nemici, wave progress
+extends Node
 
-@onready var health_bar: ProgressBar       = $HUDPanel/InnerMargin/VBoxContainer/HealthBar
-@onready var health_label: Label           = $HUDPanel/InnerMargin/VBoxContainer/HealthBar/HealthLabel
-@onready var wave_label: Label             = $HUDPanel/InnerMargin/VBoxContainer/TopRow/WaveLabel
-@onready var timer_label: Label            = $HUDPanel/InnerMargin/VBoxContainer/BottomRow/TimerLabel
-@onready var kills_label: Label            = $HUDPanel/InnerMargin/VBoxContainer/BottomRow/KillsLabel
-@onready var zone_label: Label             = $HUDPanel/InnerMargin/VBoxContainer/TopRow/ZoneLabel
-@onready var wave_progress_bar: ProgressBar = $HUDPanel/InnerMargin/VBoxContainer/WaveProgressBar
-@onready var souls_label: Label            = $HUDPanel/InnerMargin/VBoxContainer/InfoRow/SoulsLabel
-@onready var enemies_label: Label          = $HUDPanel/InnerMargin/VBoxContainer/InfoRow/EnemiesLabel
+# ══════════════════════════════════════════════════════════════════════════════
+#  VOID SURGE – HUD  (v5 – top bar singola pulita)
+#  • barra orizzontale unica in cima (wave / countdown / timer / kills)
+#  • card giocatore arrotondate in basso
+#  • barra HP smooth con StyleBoxFlat + clip_children
+# ══════════════════════════════════════════════════════════════════════════════
 
-var tracked_player: Player
-var zone_generator: ZoneGenerator
-var _enemy_spawner: Node       ## Riferimento a EnemySpawner per leggere wave_timer
-var _health_fill_style: StyleBoxFlat
+const P_COLORS: Array[Color] = [
+	Color(0.25, 0.85, 1.00),   # Cyan   P1
+	Color(1.00, 0.30, 0.72),   # Magenta P2
+	Color(0.30, 1.00, 0.45),   # Verde  P3
+	Color(1.00, 0.82, 0.15),   # Giallo P4
+]
+const C_HI  := Color(0.15, 0.95, 0.50)   # verde pieno vita
+const C_MID := Color(0.98, 0.80, 0.08)   # giallo metà vita
+const C_LO  := Color(0.98, 0.20, 0.20)   # rosso vita bassa
 
-## Feedback visivo danno ambientale
-var _hazard_overlay: ColorRect   ## Flash rosso a schermo quando colpisce un hazard
-var _hazard_label: Label          ## Label "⚠ ZONA PERICOLOSA" mostrata in hazard zone
+const BAR_W   := 210.0
+const BAR_H   := 18.0
+const PWR_H   := 8.0    # altezza barra cooldown potere
+const CARD_W  := BAR_W + 50.0
+const CARD_H  := 114.0  # aumentata per includere riga potere (era 92)
+const RADIUS  := 10     # angoli card / barra
 
+# ── nodi ──────────────────────────────────────────────────────────────────────
+var _canvas:         CanvasLayer
+var _wave_lbl:       Label
+var _wave_next_lbl:  Label   # "next: 18s"
+var _timer_lbl:      Label
+var _kills_lbl:      Label
+var _zone_lbl:       Label   # (non mostrato, kept per compatibilità)
+var _synergy_row:    Control
+var _spawner:        Node = null
+var _player_panels:  Array = []
+var _hp_fills:       Array = []
+var _hp_fill_styles: Array = []
+var _hp_labels:      Array = []
+# Potere attivabile per carta giocatore
+var _pwr_fills:      Array = []
+var _pwr_fill_styles: Array = []
+var _pwr_labels:     Array = []
+
+# ── stato ─────────────────────────────────────────────────────────────────────
+var _players:    Array = []
+var _elapsed:    float = 0.0
+var _kills:      int   = 0
+var _wave:       int   = 1
+var _poll_timer: float = 0.0
+
+
+# ══════════════════════════════════════════════
+#  Avvio
+# ══════════════════════════════════════════════
 
 func _ready() -> void:
-	GameManager.player_spawned.connect(_on_player_spawned)
-	GameManager.game_over.connect(_on_game_over)
-
-	# Stile fill dinamico health bar
-	_health_fill_style = StyleBoxFlat.new()
-	_health_fill_style.bg_color = Color(0.1, 0.85, 0.35)
-	_health_fill_style.set_corner_radius_all(4)
-	health_bar.add_theme_stylebox_override("fill", _health_fill_style)
-
-	await get_tree().process_frame
-
-	zone_generator = get_tree().get_first_node_in_group("zone_generator") as ZoneGenerator
-	if zone_generator:
-		zone_generator.zone_changed.connect(_on_zone_changed)
-		zone_generator.hazard_hit.connect(_on_hazard_hit)
-
-	# Trova EnemySpawner per leggere wave_timer
-	_enemy_spawner = get_node_or_null("/root/Main/EnemySpawner")
-
-	# Flash rosso a schermo per danno hazard (creato a runtime nel CanvasLayer)
-	_hazard_overlay = ColorRect.new()
-	_hazard_overlay.color = Color(0.9, 0.05, 0.05, 0.0)
-	_hazard_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_hazard_overlay.z_index = 10
-	var vp_size := get_viewport().get_visible_rect().size
-	_hazard_overlay.size = vp_size
-	add_child(_hazard_overlay)
-
-	# Label warning zona pericolosa
-	_hazard_label = Label.new()
-	_hazard_label.text = "⚠  ZONA PERICOLOSA  ⚠"
-	_hazard_label.add_theme_color_override("font_color", Color(1.0, 0.35, 0.1))
-	_hazard_label.add_theme_font_size_override("font_size", 16)
-	_hazard_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	_hazard_label.offset_top = 8
-	_hazard_label.offset_left = -120
-	_hazard_label.visible = false
-	add_child(_hazard_label)
+	for c in get_children():
+		c.queue_free()
+	_canvas = CanvasLayer.new()
+	_canvas.layer = 20
+	add_child(_canvas)
+	_build_ui()
+	_hook_signals()
+	_find_players()
 
 
-func _process(_delta: float) -> void:
-	if GameManager.current_state == GameManager.GameState.PLAYING:
-		_update_timer()
-		_update_kills()
-		_update_wave()
-		_update_wave_progress()
-		_update_souls()
-		_update_enemies()
+# ══════════════════════════════════════════════
+#  Costruzione UI
+# ══════════════════════════════════════════════
+
+func _build_ui() -> void:
+	var root := Control.new()
+	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_canvas.add_child(root)
+
+	# ── barra singola in cima ─────────────────────────────────────────────────
+	var top_bar := Panel.new()
+	top_bar.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	top_bar.offset_bottom = 60   # era 44 — aumentata per far stare wave + "next: Xs"
+	top_bar.add_theme_stylebox_override("panel",
+		_mk_style(Color(0.05, 0.04, 0.14, 0.92), Color.TRANSPARENT, 0, 0))
+	root.add_child(top_bar)
+
+	# linea neon sul fondo della barra
+	var top_line := Panel.new()
+	top_line.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	top_line.offset_top = -2
+	top_line.add_theme_stylebox_override("panel",
+		_mk_style(Color(0.50, 0.20, 0.90, 0.65), Color.TRANSPARENT, 0, 0))
+	top_bar.add_child(top_line)
+
+	# contenuto centrato
+	var bar_cc := CenterContainer.new()
+	bar_cc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	top_bar.add_child(bar_cc)
+
+	var bar_hbox := HBoxContainer.new()
+	bar_hbox.add_theme_constant_override("separation", 24)
+	bar_cc.add_child(bar_hbox)
+
+	# wave + countdown
+	_wave_lbl      = _lbl("◈  WAVE 1", 24, Color(0.88, 0.58, 1.00), 2, Color(0, 0, 0, 0.9))
+	_wave_next_lbl = _lbl("",          12, Color(0.72, 0.66, 0.92))  # 14→12: più compatto nella barra
+	_wave_next_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+
+	var wave_vbox := VBoxContainer.new()
+	wave_vbox.add_theme_constant_override("separation", 0)
+	wave_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	wave_vbox.add_child(_wave_lbl)
+	wave_vbox.add_child(_wave_next_lbl)
+	bar_hbox.add_child(wave_vbox)
+
+	bar_hbox.add_child(_mk_vsep())
+	_timer_lbl = _lbl("⏱  00:00", 20, Color(0.65, 0.90, 1.00), 1, Color(0, 0, 0, 0.7))
+	bar_hbox.add_child(_timer_lbl)
+
+	bar_hbox.add_child(_mk_vsep())
+	_kills_lbl = _lbl("☠  0", 20, Color(1.00, 0.52, 0.20), 1, Color(0, 0, 0, 0.7))
+	bar_hbox.add_child(_kills_lbl)
+
+	# ── banner synergy co-op ──────────────────────────────────────────────────
+	_synergy_row = Control.new()
+	_synergy_row.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	_synergy_row.offset_top    = 56   # segue la nuova altezza barra (60px)
+	_synergy_row.offset_bottom = 78
+	_synergy_row.modulate.a    = 0.0
+	root.add_child(_synergy_row)
+
+	var syn_panel := Panel.new()
+	syn_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	syn_panel.add_theme_stylebox_override("panel",
+		_mk_style(Color(0.05, 0.40, 0.70, 0.35), Color(0.20, 0.90, 1.00, 0.55), 0, 2))
+	_synergy_row.add_child(syn_panel)
+
+	var syn_lbl := _lbl("⚡   CO-OP SYNERGY   ⚡", 13, Color(0.20, 0.95, 1.00), 3, Color(0, 0, 0, 0.8))
+	syn_lbl.set_anchors_preset(Control.PRESET_FULL_RECT)
+	syn_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	syn_lbl.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
+	_synergy_row.add_child(syn_lbl)
+
+	# ── card giocatori ────────────────────────────────────────────────────────
+	for i in 4:
+		var col  := P_COLORS[i]
+		var card := _build_player_card(i, col)
+		card.visible = (i == 0)
+		_player_panels.append(card)
+
+		var stack := int(i >= 2)
+		var off_y := -(CARD_H + 14.0) - (CARD_H + 8.0) * stack
+
+		if i % 2 == 0:   # sinistra
+			card.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+			card.offset_left   = 12
+			card.offset_bottom = off_y + CARD_H
+			card.offset_top    = off_y
+			card.offset_right  = 12.0 + CARD_W
+		else:             # destra
+			card.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+			card.offset_right  = -12
+			card.offset_bottom = off_y + CARD_H
+			card.offset_top    = off_y
+			card.offset_left   = -(CARD_W + 12.0)
+
+		root.add_child(card)
 
 
-func _on_player_spawned(player: Node2D) -> void:
-	if player is Player and tracked_player == null:
-		tracked_player = player
-		tracked_player.health_changed.connect(_on_health_changed)
-		health_bar.max_value = tracked_player.max_health
-		health_bar.value = tracked_player.current_health
-		_update_health_label()
+# ── card giocatore ────────────────────────────────────────────────────────────
+
+func _build_player_card(idx: int, col: Color) -> Control:
+	var card := Control.new()
+	card.custom_minimum_size = Vector2(CARD_W, CARD_H)
+
+	var bg := Panel.new()
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.add_theme_stylebox_override("panel",
+		_mk_style(Color(0.04, 0.03, 0.14, 0.93), Color(col.r, col.g, col.b, 0.55), RADIUS, 2))
+	card.add_child(bg)
+
+	var stripe_s := _mk_style(Color(col.r, col.g, col.b, 0.88), Color.TRANSPARENT, 0, 0)
+	stripe_s.corner_radius_top_left  = RADIUS
+	stripe_s.corner_radius_top_right = RADIUS
+	var stripe := Panel.new()
+	stripe.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	stripe.offset_bottom = 4
+	stripe.add_theme_stylebox_override("panel", stripe_s)
+	card.add_child(stripe)
+
+	var vbox := VBoxContainer.new()
+	vbox.set_anchors_preset(Control.PRESET_FULL_RECT)
+	vbox.offset_left   = 14
+	vbox.offset_right  = -14
+	vbox.offset_top    = 12
+	vbox.offset_bottom = -10
+	vbox.add_theme_constant_override("separation", 8)
+	card.add_child(vbox)
+
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 8)
+	vbox.add_child(header)
+
+	var badge := PanelContainer.new()
+	var bs := _mk_style(Color(col.r, col.g, col.b, 0.22), col, 8, 1)
+	bs.content_margin_left   = 9.0
+	bs.content_margin_right  = 9.0
+	bs.content_margin_top    = 1.0
+	bs.content_margin_bottom = 1.0
+	badge.add_theme_stylebox_override("panel", bs)
+	badge.add_child(_lbl("P%d" % (idx + 1), 20, col, 2, Color(0, 0, 0, 0.9)))
+	header.add_child(badge)
+
+	var hp_lbl := _lbl("", 17, Color(0.82, 0.82, 1.00))
+	hp_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hp_lbl.horizontal_alignment  = HORIZONTAL_ALIGNMENT_RIGHT
+	header.add_child(hp_lbl)
+	_hp_labels.append(hp_lbl)
+
+	var bar_root := Control.new()
+	bar_root.custom_minimum_size = Vector2(BAR_W, BAR_H)
+	bar_root.clip_children = CanvasItem.CLIP_CHILDREN_ONLY
+	vbox.add_child(bar_root)
+
+	var bar_bg := Panel.new()
+	bar_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bar_bg.add_theme_stylebox_override("panel",
+		_mk_style(Color(0.07, 0.07, 0.18), Color.TRANSPARENT, RADIUS, 0))
+	bar_root.add_child(bar_bg)
+
+	var fill_style := _mk_style(C_HI, Color.TRANSPARENT, RADIUS, 0)
+	var bar_fill := Panel.new()
+	bar_fill.position = Vector2.ZERO
+	bar_fill.size     = Vector2(BAR_W, BAR_H)
+	bar_fill.add_theme_stylebox_override("panel", fill_style)
+	bar_root.add_child(bar_fill)
+
+	var hl := Panel.new()
+	hl.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	hl.offset_bottom = 4
+	hl.add_theme_stylebox_override("panel",
+		_mk_style(Color(1, 1, 1, 0.22), Color.TRANSPARENT, RADIUS, 0))
+	bar_fill.add_child(hl)
+
+	_hp_fills.append(bar_fill)
+	_hp_fill_styles.append(fill_style)
+
+	# ── riga potere attivabile ────────────────────────────────────────────────
+	var pwr_row := HBoxContainer.new()
+	pwr_row.add_theme_constant_override("separation", 6)
+	pwr_row.custom_minimum_size = Vector2(BAR_W, 0)
+	vbox.add_child(pwr_row)
+
+	var pwr_lbl := _lbl("", 11, Color(0.60, 0.60, 0.85))
+	pwr_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pwr_lbl.horizontal_alignment  = HORIZONTAL_ALIGNMENT_LEFT
+	pwr_row.add_child(pwr_lbl)
+	_pwr_labels.append(pwr_lbl)
+
+	var pwr_cd_lbl := _lbl("PRONTO", 11, Color(0.20, 1.00, 0.55))
+	pwr_row.add_child(pwr_cd_lbl)
+	# reuse stesso array — il secondo elemento per card è la cd label
+	# usiamo _pwr_fills[i] = bar_fill nodo, _pwr_fill_styles[i] = style
+	# e lo cd_label è incluso in _pwr_labels come coppia [name_lbl, cd_lbl]
+	# ma manteniamo un array separato per cd label
+	# (ridefinita sotto con _pwr_cd_labels)
+
+	var pwr_bar_root := Control.new()
+	pwr_bar_root.custom_minimum_size = Vector2(BAR_W, PWR_H)
+	pwr_bar_root.clip_children = CanvasItem.CLIP_CHILDREN_ONLY
+	vbox.add_child(pwr_bar_root)
+
+	var pwr_bg := Panel.new()
+	pwr_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	pwr_bg.add_theme_stylebox_override("panel",
+		_mk_style(Color(0.07, 0.07, 0.18), Color.TRANSPARENT, RADIUS, 0))
+	pwr_bar_root.add_child(pwr_bg)
+
+	var pwr_fill_style := _mk_style(Color(0.55, 0.22, 1.00), Color.TRANSPARENT, RADIUS, 0)
+	var pwr_fill := Panel.new()
+	pwr_fill.position = Vector2.ZERO
+	pwr_fill.size     = Vector2(BAR_W, PWR_H)
+	pwr_fill.add_theme_stylebox_override("panel", pwr_fill_style)
+	pwr_bar_root.add_child(pwr_fill)
+
+	_pwr_fills.append(pwr_fill)
+	_pwr_fill_styles.append(pwr_fill_style)
+
+	# Sostituisce il placeholder _pwr_labels con coppia [name, cd_text]
+	# — riscriviamo l'ultimo append con la coppia
+	_pwr_labels[_pwr_labels.size() - 1] = [pwr_lbl, pwr_cd_lbl]
+
+	return card
 
 
-func _on_health_changed(current: float, max_hp: float) -> void:
-	health_bar.max_value = max_hp
-	health_bar.value = current
-	_update_health_label()
-	_update_health_bar_color(current / max(max_hp, 1.0))
+# ══════════════════════════════════════════════
+#  Helper – stile / label / separatore
+# ══════════════════════════════════════════════
+
+func _mk_style(bg: Color, border: Color, radius: int, border_w: int) -> StyleBoxFlat:
+	var s := StyleBoxFlat.new()
+	s.bg_color    = bg
+	s.border_color = border
+	s.border_width_left   = border_w
+	s.border_width_right  = border_w
+	s.border_width_top    = border_w
+	s.border_width_bottom = border_w
+	s.corner_radius_top_left     = radius
+	s.corner_radius_top_right    = radius
+	s.corner_radius_bottom_left  = radius
+	s.corner_radius_bottom_right = radius
+	s.anti_aliasing      = true
+	s.anti_aliasing_size = 1.5
+	return s
 
 
-## Colore fill barra HP: verde → giallo → rosso in base alla percentuale
-func _update_health_bar_color(percent: float) -> void:
-	if not _health_fill_style:
+func _mk_vsep() -> Control:
+	var c := ColorRect.new()
+	c.custom_minimum_size = Vector2(2, 20)
+	c.color = Color(0.50, 0.20, 0.90, 0.45)
+	return c
+
+
+func _lbl(txt: String, sz: int, col: Color,
+		outline: int = 0, out_col: Color = Color.BLACK) -> Label:
+	var l := Label.new()
+	l.text = txt
+	l.add_theme_font_size_override("font_size", sz)
+	l.add_theme_color_override("font_color", col)
+	if outline > 0:
+		l.add_theme_constant_override("outline_size", outline)
+		l.add_theme_color_override("font_outline_color", out_col)
+	return l
+
+
+# ══════════════════════════════════════════════
+#  Segnali (opzionali)
+# ══════════════════════════════════════════════
+
+func _hook_signals() -> void:
+	for sig in ["wave_started", "on_wave_start", "wave_changed", "new_wave", "wave_begin"]:
+		if GameManager.has_signal(sig):
+			GameManager.connect(sig, _on_wave)
+			break
+	for sig in ["enemy_killed", "on_enemy_killed", "kill", "enemy_died", "enemy_death"]:
+		if GameManager.has_signal(sig):
+			GameManager.connect(sig, _on_kill)
+			break
+	if GameManager.has_signal("coop_synergy_active"):
+		GameManager.coop_synergy_active.connect(_on_synergy)
+
+
+func _on_wave(arg = null) -> void:
+	_wave = arg if arg is int else _read_gm_wave()
+	_wave_lbl.text = "◈  WAVE %d" % _wave
+	_wave_lbl.scale = Vector2(1.4, 1.4)
+	create_tween().tween_property(_wave_lbl, "scale", Vector2.ONE, 0.4
+		).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_ELASTIC)
+
+
+func _on_kill(_a = null) -> void:
+	_kills += 1
+	_kills_lbl.text = "☠  %d" % _kills
+
+
+func _on_synergy(active: bool) -> void:
+	create_tween().tween_property(_synergy_row, "modulate:a",
+		1.0 if active else 0.0, 0.4)
+
+
+# ══════════════════════════════════════════════
+#  _process
+# ══════════════════════════════════════════════
+
+func _process(delta: float) -> void:
+	_elapsed += delta
+	_timer_lbl.text = "%02d:%02d" % [int(_elapsed) / 60, int(_elapsed) % 60]
+
+	_poll_timer += delta
+	if _poll_timer >= 0.4:
+		_poll_timer = 0.0
+		_slow_poll()
+
+	_update_hp_bars()
+
+
+func _find_spawner() -> void:
+	var sp = get_tree().get_first_node_in_group("enemy_spawner")
+	if sp:
+		_spawner = sp
 		return
-	if percent > 0.6:
-		_health_fill_style.bg_color = Color(0.1, 0.85, 0.35)
-	elif percent > 0.3:
-		_health_fill_style.bg_color = Color(1.0, 0.75, 0.1)
-	else:
-		_health_fill_style.bg_color = Color(0.95, 0.2, 0.2)
+	var scene := get_tree().current_scene
+	if scene:
+		for child in scene.get_children():
+			if child.get("wave_timer") != null and child.get("wave_duration") != null:
+				_spawner = child
+				return
 
 
-func _on_zone_changed(zone_data: ZoneData) -> void:
-	if zone_label and zone_data:
-		var name_text := zone_data.zone_name.to_upper()
-		if zone_data.hazard_enabled:
-			name_text += "  ⚠"
-		zone_label.text = name_text
-		zone_label.add_theme_color_override("font_color", zone_data.glow_color)
+func _slow_poll() -> void:
+	if _players.is_empty():
+		_find_players()
 
-	# Mostra/nasconde label avvertimento hazard
-	if _hazard_label:
-		_hazard_label.visible = zone_data.hazard_enabled if zone_data else false
+	# ── wave countdown ────────────────────────────────────────────────────────
+	if _spawner == null or not is_instance_valid(_spawner):
+		_find_spawner()
+	if _spawner != null and is_instance_valid(_spawner):
+		var wt = _spawner.get("wave_timer")
+		var wd = _spawner.get("wave_duration")
+		if wt != null and wd != null:
+			var remaining := maxf(float(wd) - float(wt), 0.0)
+			_wave_next_lbl.text = "next: %ds" % int(remaining)
+
+	# wave
+	var gw := _read_gm_wave()
+	if gw > 0 and gw != _wave:
+		_wave = gw
+		_wave_lbl.text = "◈  WAVE %d" % _wave
+
+	# kills
+	for prop in ["total_kills", "kill_count", "kills", "_kill_count",
+				 "enemy_kill_count", "wave_kills", "score"]:
+		var v = GameManager.get(prop)
+		if v is int and v >= 0:
+			_kills = v
+			_kills_lbl.text = "☠  %d" % _kills
+			break
+
+	# zona (non mostrata nella barra, kept per compatibilità)
+	for m in ["get_current_zone_name", "get_zone_name"]:
+		if GameManager.has_method(m):
+			if _zone_lbl:
+				_zone_lbl.text = str(GameManager.call(m)).to_upper()
+			return
+	for p in ["current_zone", "zone_name", "zone"]:
+		var v = GameManager.get(p)
+		if v is String and v != "":
+			if _zone_lbl:
+				_zone_lbl.text = v.to_upper()
+			break
 
 
-## Flash rosso a schermo quando la zona applica danno ambientale
-func _on_hazard_hit(_damage: float) -> void:
-	if not _hazard_overlay:
+# ── ricerca player ─────────────────────────────────────────────────────────────
+
+func _find_players() -> void:
+	var found: Array = []
+
+	for grp in ["players", "player", "Players", "Player", "protagonists", "heroes"]:
+		found = Array(get_tree().get_nodes_in_group(grp))
+		if not found.is_empty():
+			break
+
+	if found.is_empty():
+		for prop in ["players", "player_list", "active_players",
+					 "spawned_players", "_players", "player_nodes", "player_refs"]:
+			var v = GameManager.get(prop)
+			if v is Array and not v.is_empty():
+				found = v
+				break
+		if found.is_empty() and GameManager.has_method("get_players"):
+			var v = GameManager.get_players()
+			if v is Array:
+				found = v
+
+	if found.is_empty():
+		var scene := get_tree().current_scene
+		if scene:
+			for child in scene.get_children():
+				if child.get("current_health") != null and child.get("max_health") != null:
+					found.append(child)
+				elif child.get("health") != null and child.get("max_health") != null:
+					found.append(child)
+			if found.is_empty():
+				for child in scene.get_children():
+					for sub in child.get_children():
+						if sub.get("current_health") != null and sub.get("max_health") != null:
+							found.append(sub)
+
+	if not found.is_empty():
+		_players = found
+		for i in min(_players.size(), 4):
+			_player_panels[i].visible = true
+
+
+# ── aggiorna barre HP ─────────────────────────────────────────────────────────
+
+func _update_hp_bars() -> void:
+	if _players.is_empty():
 		return
-	var tween := create_tween()
-	tween.tween_property(_hazard_overlay, "color:a", 0.35, 0.06)
-	tween.tween_property(_hazard_overlay, "color:a", 0.0,  0.55)
+
+	for i in min(_players.size(), 4):
+		var p = _players[i]
+		if not is_instance_valid(p):
+			continue
+
+		# ── HP bar ────────────────────────────────────────────────────────────
+		var hp:     float = _rf(p, ["current_health", "health", "hp", "_health", "life"])
+		var max_hp: float = _rf(p, ["max_health", "max_hp", "_max_health", "max_life"])
+		if max_hp <= 0.0:
+			max_hp = 100.0
+
+		var ratio := clampf(hp / max_hp, 0.0, 1.0)
+
+		var fill: Panel = _hp_fills[i]
+		fill.size.x = lerpf(fill.size.x, BAR_W * ratio, 0.18)
+
+		var fs: StyleBoxFlat = _hp_fill_styles[i]
+		var target_col := C_HI if ratio > 0.55 else (C_MID if ratio > 0.28 else C_LO)
+		fs.bg_color = fs.bg_color.lerp(target_col, 0.12)
+
+		_hp_labels[i].text = "%d / %d" % [int(hp), int(max_hp)]
+
+		# ── barra cooldown potere ─────────────────────────────────────────────
+		if i >= _pwr_labels.size():
+			continue
+		var pair = _pwr_labels[i]
+		if not (pair is Array and pair.size() == 2):
+			continue
+		var name_lbl: Label = pair[0]
+		var cd_lbl:   Label = pair[1]
+		var pwr_fill: Panel       = _pwr_fills[i]
+		var pwr_fs: StyleBoxFlat  = _pwr_fill_styles[i]
+
+		# Legge metodo get_active_power_name() e get_power_cooldown_ratio() se il player li ha
+		var pname: String = ""
+		var cd_ratio: float = 0.0
+		if p.has_method("get_active_power_name"):
+			pname = p.get_active_power_name()
+		if p.has_method("get_power_cooldown_ratio"):
+			cd_ratio = p.get_power_cooldown_ratio()
+
+		if pname.is_empty():
+			name_lbl.text = ""
+			cd_lbl.text   = ""
+			pwr_fill.size.x = 0.0
+		else:
+			name_lbl.text = pname
+			# ready_ratio = 1 - cd_ratio  (pieno = pronto, vuoto = in cooldown)
+			var ready := 1.0 - cd_ratio
+			pwr_fill.size.x = lerpf(pwr_fill.size.x, BAR_W * ready, 0.20)
+			if cd_ratio <= 0.0:
+				cd_lbl.text = "PRONTO"
+				cd_lbl.add_theme_color_override("font_color", Color(0.20, 1.00, 0.55))
+				pwr_fs.bg_color = pwr_fs.bg_color.lerp(Color(0.20, 1.00, 0.55), 0.15)
+			else:
+				cd_lbl.text = "%.1fs" % (cd_ratio * _get_power_cd_max(p))
+				cd_lbl.add_theme_color_override("font_color", Color(0.60, 0.60, 0.85))
+				pwr_fs.bg_color = pwr_fs.bg_color.lerp(Color(0.55, 0.22, 1.00), 0.15)
 
 
-func _update_health_label() -> void:
-	if health_label and tracked_player:
-		health_label.text = "%d / %d" % [
-			int(tracked_player.current_health),
-			int(tracked_player.max_health)
-		]
+## Legge _power_cooldown_max dal player (se disponibile)
+func _get_power_cd_max(p: Object) -> float:
+	var v = p.get("_power_cooldown_max")
+	if v is float and v > 0.0:
+		return v
+	return 1.0
 
 
-func _update_timer() -> void:
-	if timer_label:
-		timer_label.text = GameManager.get_formatted_time()
+# ══════════════════════════════════════════════
+#  Utility
+# ══════════════════════════════════════════════
+
+func _read_gm_wave() -> int:
+	for p in ["current_wave", "wave_number", "wave", "_wave", "_current_wave"]:
+		var v = GameManager.get(p)
+		if v is int and v > 0:
+			return v
+	return 0
 
 
-func _update_kills() -> void:
-	if kills_label:
-		kills_label.text = "%d kills" % GameManager.total_kills
+func _rf(obj: Object, names: Array) -> float:
+	for n in names:
+		var v = obj.get(n)
+		if v is float or v is int:
+			return float(v)
+	return 0.0
 
 
-func _update_wave() -> void:
-	if wave_label:
-		wave_label.text = "WAVE %d" % GameManager.current_wave
-
-
-## Barra sottile che riempie i 30 secondi fino alla prossima wave
-func _update_wave_progress() -> void:
-	if not wave_progress_bar or not _enemy_spawner:
-		return
-	var duration: float = _enemy_spawner.wave_duration if _enemy_spawner.get("wave_duration") != null else 30.0
-	var timer: float    = _enemy_spawner.wave_timer    if _enemy_spawner.get("wave_timer")    != null else 0.0
-	wave_progress_bar.value = clampf((timer / duration) * 100.0, 0.0, 100.0)
-
-
-## Souls = kills × 2 + wave_reached × 10 (formula MetaManager)
-func _update_souls() -> void:
-	if souls_label:
-		var souls := GameManager.total_kills * 2 + GameManager.current_wave * 10
-		souls_label.text = "SOULS: %d" % souls
-
-
-## Nemici attivi su schermo letti da EnemySpawner
-func _update_enemies() -> void:
-	if not enemies_label:
-		return
-	if _enemy_spawner and _enemy_spawner.has_method("get_enemy_count"):
-		enemies_label.text = "%d enemies" % _enemy_spawner.get_enemy_count()
-	else:
-		enemies_label.text = ""
-
-
-func _on_game_over(_stats: Dictionary) -> void:
-	pass
+func setup(players: Array) -> void:
+	_players = players
+	for i in min(players.size(), 4):
+		_player_panels[i].visible = true

@@ -1,225 +1,282 @@
 extends CharacterBody2D
 class_name Enemy
-## Enemy - Nemico base che pattuglia e attacca i giocatori
-## FIX: cache base_color per correggere il bug del hit flash
+
+# ─────────────────────────────────────────────
+#  Enemy  –  base class for all enemies
+#  Includes: zone colour fix, damage numbers, hit flash
+# ─────────────────────────────────────────────
 
 signal died(enemy: Enemy)
-signal health_changed(current: float, max_health: float)
 
-enum State { PATROL, CHASE, ATTACK }
+# ── stats ─────────────────────────────────────────────────────────────────────
+@export var max_health:      float = 30.0
+@export var move_speed:      float = 80.0
+@export var damage:          float = 10.0
+@export var attack_range:    float = 42.0   # pixels – deals damage when this close
+@export var attack_cooldown: float = 0.9    # seconds between hits
+@export var xp_value:        int   = 5
+@export var soul_value:      int   = 1
+@export var drop_chance:     float = 0.30   # probabilità drop equipaggiamento
 
-@export_group("Stats")
-@export var max_health: float = 30.0
-@export var move_speed: float = 100.0
-@export var damage: float = 10.0
-@export var attack_cooldown: float = 1.0
+# ── runtime ───────────────────────────────────────────────────────────────────
+var health: float
+var target: Node2D = null
+var is_dead: bool  = false
+var base_color: Color            # cached so hit-flash can restore correctly
+var _attack_timer: float = 0.0  # countdown to next allowed attack
 
-@export_group("AI")
-@export var detection_range: float = 400.0
-@export var attack_range: float = 50.0
-@export var patrol_radius: float = 150.0
-
-@export_group("Drops")
-@export var drop_chance: float = 0.3
-@export var pickup_scene: PackedScene
-
-var current_health: float
-var current_state: State = State.PATROL
-var target_player: Node2D = null
-var patrol_center: Vector2
-var patrol_target: Vector2
-var can_attack: bool = true
-
-# FIX: cache del colore base per il corretto ripristino dopo hit flash
-var base_color: Color = Color.WHITE
-
-@onready var sprite: Sprite2D = $Sprite2D
-@onready var collision_shape: CollisionShape2D = $CollisionShape2D
-@onready var detection_area: Area2D = $DetectionArea
-@onready var attack_timer: Timer = $AttackTimer
-@onready var hit_flash_timer: Timer = $HitFlashTimer
+# ── internal ──────────────────────────────────────────────────────────────────
+# Rilevamento automatico: cerca il primo Sprite2D / AnimatedSprite2D figlio
+var sprite: Node2D = null
+var hit_timer: Timer = null
+var collision: CollisionShape2D = null
 
 const ENEMY_COLORS: Array[Color] = [
-	Color(1.0, 0.3, 0.3),  # Rosso
-	Color(1.0, 0.5, 0.2),  # Arancione
-	Color(0.8, 0.2, 0.8),  # Viola
+	Color(0.8, 0.2, 1.0),   # violet
+	Color(0.2, 0.8, 1.0),   # cyan
+	Color(1.0, 0.4, 0.1),   # orange
+	Color(0.2, 1.0, 0.5),   # green
 ]
+const HIT_FLASH_COLOR := Color(1.0, 1.0, 1.0, 1.0)
+const HIT_FLASH_TIME  := 0.08
 
+
+# ══════════════════════════════════════════════
+#  Lifecycle
+# ══════════════════════════════════════════════
 
 func _ready() -> void:
-	current_health = max_health
-	patrol_center = global_position
-	patrol_target = _get_random_patrol_point()
+	health = max_health
+
+	# ── auto-detect sprite (qualunque nome abbia nella scena) ─────────────────
+	sprite = _find_sprite()
+
+	# ── auto-detect hit timer ─────────────────────────────────────────────────
+	hit_timer = get_node_or_null("HitFlashTimer")
+	if hit_timer == null:
+		# non esiste → crealo a runtime
+		hit_timer = Timer.new()
+		hit_timer.name = "HitFlashTimer"
+		add_child(hit_timer)
+
+	# ── auto-detect collision ─────────────────────────────────────────────────
+	collision = get_node_or_null("CollisionShape2D")
+	if collision == null:
+		for child in get_children():
+			if child is CollisionShape2D:
+				collision = child
+				break
+
+	# random base colour
+	base_color = ENEMY_COLORS[randi() % ENEMY_COLORS.size()]
+
+	# ── visual moderno: nasconde Sprite2D e usa EnemyVisual ──────────────────
+	if sprite != null:
+		sprite.visible = false
+	var vis_script = load("res://scripts/visuals/enemy_visual.gd")
+	if vis_script:
+		var vis: Node2D = vis_script.new()
+		add_child(vis)
+		sprite = vis   # ora hit-flash / zone-color agiscono sul visual
+	elif sprite != null:
+		sprite.visible = true   # fallback: usa sprite originale
+
+	if sprite != null:
+		sprite.modulate = base_color
+
+	# connect timer
+	if not hit_timer.timeout.is_connected(_on_hit_flash_timeout):
+		hit_timer.timeout.connect(_on_hit_flash_timeout)
+	hit_timer.wait_time = HIT_FLASH_TIME
+	hit_timer.one_shot  = true
+
 	add_to_group("enemies")
 
-	# Assegna colore random e cachalo subito
-	var chosen_color := ENEMY_COLORS[randi() % ENEMY_COLORS.size()]
-	base_color = chosen_color
-	if sprite:
-		sprite.modulate = base_color
 
-	if detection_area:
-		var detection_shape := CircleShape2D.new()
-		detection_shape.radius = detection_range
-		var collision := CollisionShape2D.new()
-		collision.shape = detection_shape
-		detection_area.add_child(collision)
-
-	attack_timer.wait_time = attack_cooldown
-	attack_timer.one_shot = true
-	attack_timer.timeout.connect(_on_attack_timer_timeout)
-
-	hit_flash_timer.one_shot = true
-	hit_flash_timer.timeout.connect(_on_hit_flash_timeout)
-
-
-## Chiamato da EnemySpawner per applicare la tinta di zona.
-## Aggiorna anche base_color così l'hit flash ripristina il colore corretto.
-func setup_zone_color(zone_color: Color, blend_amount: float = 0.2) -> void:
-	base_color = base_color.lerp(zone_color, blend_amount)
-	if sprite:
-		sprite.modulate = base_color
+## Cerca il primo nodo Sprite2D o AnimatedSprite2D tra i figli (qualunque nome)
+func _find_sprite() -> Node2D:
+	# prima prova nomi comuni
+	for name_try in ["Sprite2D", "Sprite", "AnimatedSprite2D", "AnimatedSprite"]:
+		var n := get_node_or_null(name_try)
+		if n != null:
+			return n as Node2D
+	# fallback: primo figlio di tipo Sprite2D
+	for child in get_children():
+		if child is Sprite2D or child is AnimatedSprite2D:
+			return child as Node2D
+	return null
 
 
 func _physics_process(delta: float) -> void:
-	_update_target()
+	if is_dead:
+		return
+	# Auto-trova il giocatore più vicino se non abbiamo un target valido
+	if not is_instance_valid(target):
+		_find_nearest_player()
+	if not is_instance_valid(target):
+		return
 
-	match current_state:
-		State.PATROL:
-			_patrol(delta)
-		State.CHASE:
-			_chase(delta)
-		State.ATTACK:
-			_attack()
+	# ── attacco da contatto ──────────────────────────────────────────────────
+	_attack_timer -= delta
+	if _attack_timer <= 0.0:
+		var dist := global_position.distance_to(target.global_position)
+		if dist <= attack_range:
+			if target.has_method("take_damage"):
+				target.take_damage(damage)
+			_attack_timer = attack_cooldown
 
+	_move_toward_target(delta)
+
+
+func _find_nearest_player() -> void:
+	var best: Node2D = null
+	var best_dist := INF
+	for group_name in ["players", "player"]:
+		for p in get_tree().get_nodes_in_group(group_name):
+			if not is_instance_valid(p):
+				continue
+			var d := global_position.distance_squared_to(p.global_position)
+			if d < best_dist:
+				best_dist = d
+				best = p as Node2D
+	target = best
+
+
+func _move_toward_target(delta: float) -> void:
+	if not is_instance_valid(target):
+		return
+	var dir := (target.global_position - global_position).normalized()
+	var spd := move_speed
+
+	# Time Surge: rallenta i nemici al 25% della velocità normale per 4 secondi
+	# Attivato da player._power_time_surge() tramite GameManager metadata
+	var gm := get_node_or_null("/root/GameManager")
+	if gm != null and gm.has_meta("time_surge_active"):
+		spd *= 0.25
+
+	velocity = dir * spd
 	move_and_slide()
 
 
-func _update_target() -> void:
-	var closest_player: Node2D = null
-	var closest_distance: float = detection_range
+# ══════════════════════════════════════════════
+#  Zone colour  (called by EnemySpawner)
+# ══════════════════════════════════════════════
 
-	for player in get_tree().get_nodes_in_group("players"):
-		var distance := global_position.distance_to(player.global_position)
-		if distance < closest_distance:
-			closest_distance = distance
-			closest_player = player
-
-	target_player = closest_player
-
-	if target_player:
-		var distance := global_position.distance_to(target_player.global_position)
-		if distance <= attack_range:
-			current_state = State.ATTACK
-		else:
-			current_state = State.CHASE
-	else:
-		current_state = State.PATROL
+## Blends the enemy's base colour with the zone's glow colour.
+## Caches the result as base_color so the hit flash restores it correctly.
+func setup_zone_color(zone_color: Color, blend_amount: float = 0.25) -> void:
+	base_color = base_color.lerp(zone_color, blend_amount)
+	if sprite != null:
+		sprite.modulate = base_color
 
 
-func _patrol(_delta: float) -> void:
-	var direction := (patrol_target - global_position).normalized()
-	velocity = direction * move_speed * 0.5
+# ══════════════════════════════════════════════
+#  Damage / death
+# ══════════════════════════════════════════════
 
-	if sprite and direction.x != 0:
-		sprite.flip_h = direction.x < 0
-
-	if global_position.distance_to(patrol_target) < 20:
-		patrol_target = _get_random_patrol_point()
-
-
-func _chase(_delta: float) -> void:
-	if not target_player:
+func take_damage(amount: float, crit: bool = false, _source_player_id: int = -1) -> void:
+	if is_dead:
 		return
 
-	var direction := (target_player.global_position - global_position).normalized()
-	velocity = direction * move_speed
+	health -= amount
+	_trigger_hit_flash()
 
-	if sprite and direction.x != 0:
-		sprite.flip_h = direction.x < 0
+	# ── floating damage number ────────────────────────────────────────────────
+	var vfx_node: Node = get_node_or_null("/root/VFX")
+	if vfx_node != null and vfx_node.has_method("spawn_damage_number"):
+		var dmg_color := Color.WHITE
+		if crit:
+			dmg_color = Color(1.0, 0.85, 0.1)   # gold for crits
+		vfx_node.spawn_damage_number(global_position, int(amount), crit, dmg_color)
 
-
-func _attack() -> void:
-	velocity = Vector2.ZERO
-
-	if can_attack and target_player:
-		can_attack = false
-		attack_timer.start()
-
-		if target_player.has_method("take_damage"):
-			target_player.take_damage(damage)
+	if health <= 0.0:
+		_die()
 
 
-func _get_random_patrol_point() -> Vector2:
-	var angle := randf() * TAU
-	var distance := randf_range(patrol_radius * 0.5, patrol_radius)
-	return patrol_center + Vector2(cos(angle), sin(angle)) * distance
+func _trigger_hit_flash() -> void:
+	if sprite != null:
+		sprite.modulate = HIT_FLASH_COLOR
+	hit_timer.start()
+
+func _on_hit_flash_timeout() -> void:
+	if sprite != null:
+		sprite.modulate = base_color
 
 
-func take_damage(amount: float) -> void:
-	current_health = maxf(current_health - amount, 0)
-	health_changed.emit(current_health, max_health)
+func _die() -> void:
+	if is_dead:
+		return
+	is_dead = true
 
-	_start_hit_flash()
+	# Incrementa kill counter nel GameManager
+	var gm: Node = get_node_or_null("/root/GameManager")
+	if gm != null and gm.has_method("add_kill"):
+		gm.add_kill()
 
-	# Knockback verso l'esterno
-	if target_player:
-		var knockback_dir := (global_position - target_player.global_position).normalized()
-		velocity = knockback_dir * 200
+	# VFX death burst
+	var vfx_node: Node = get_node_or_null("/root/VFX")
+	if vfx_node != null and vfx_node.has_method("spawn_death_effect"):
+		vfx_node.spawn_death_effect(global_position, base_color)
 
-	if current_health <= 0:
-		die()
+	# disable collision immediately
+	if collision != null:
+		collision.set_deferred("disabled", true)
 
-
-func die() -> void:
-	GameManager.add_kill()
-	died.emit(self)
-
-	# FIX: VFX è il nome autoload registrato in Project > Autoload per vfx_manager.gd
-	# Assicurati che in Project Settings > Autoload il nome sia esattamente "VFX"
-	if Engine.has_singleton("VFX") or get_node_or_null("/root/VFX") != null:
-		var vfx := get_node("/root/VFX")
-		vfx.spawn_death_effect(global_position, base_color)
-
+	emit_signal("died", self)
 	_try_drop_equipment()
 	queue_free()
 
 
+# ── drop equipaggiamento ──────────────────────────────────────────────────────
+
 func _try_drop_equipment() -> void:
 	var drop_mult := 1.0
-	var zone_gen := get_tree().get_first_node_in_group("zone_generator") as ZoneGenerator
-	if zone_gen and zone_gen.current_zone:
-		drop_mult = zone_gen.current_zone.drop_rate_multiplier
+
+	# zona: opzionale, nessun errore se ZoneGenerator non è presente
+	var zone_gen := get_tree().get_first_node_in_group("zone_generator")
+	if zone_gen:
+		var zone = zone_gen.get("current_zone")
+		if zone:
+			var dmult = zone.get("drop_rate_multiplier")
+			if dmult != null:
+				drop_mult = float(dmult)
 
 	if randf() > drop_chance * drop_mult:
 		return
 
-	var equipment := EquipmentManager.roll_random_equipment(drop_mult)
+	# EquipmentManager
+	var em := get_node_or_null("/root/EquipmentManager")
+	if em == null or not em.has_method("roll_random_equipment"):
+		return
+
+	var equipment = em.roll_random_equipment(drop_mult)
 	if not equipment:
 		return
 
-	if not pickup_scene:
-		pickup_scene = load("res://scenes/pickups/equipment_pickup.tscn")
+	# Pickup scene
+	var pickup_path := "res://scenes/pickups/equipment_pickup.tscn"
+	if not ResourceLoader.exists(pickup_path):
+		push_warning("EnemyVisual: pickup scene non trovata in " + pickup_path)
+		return
 
-	if pickup_scene:
-		var pickup := pickup_scene.instantiate() as EquipmentPickup
-		pickup.global_position = global_position + Vector2(randf_range(-20, 20), randf_range(-20, 20))
+	var pickup_res = load(pickup_path)
+	if not pickup_res:
+		return
+
+	var pickup = pickup_res.instantiate()
+	pickup.global_position = global_position + \
+		Vector2(randf_range(-22.0, 22.0), randf_range(-22.0, 22.0))
+	if pickup.has_method("setup"):
 		pickup.setup(equipment)
-		get_tree().current_scene.add_child(pickup)
+	get_tree().current_scene.add_child(pickup)
 
 
-func _start_hit_flash() -> void:
-	if sprite:
-		sprite.modulate = Color.WHITE
-		hit_flash_timer.start(0.08)
+# ══════════════════════════════════════════════
+#  Utility
+# ══════════════════════════════════════════════
 
+func get_health_ratio() -> float:
+	return clampf(health / max_health, 0.0, 1.0)
 
-func _on_attack_timer_timeout() -> void:
-	can_attack = true
-
-
-func _on_hit_flash_timeout() -> void:
-	# FIX: ripristina base_color (che include anche la tinta di zona)
-	# invece di scegliere un colore random che ignorava la zona
-	if sprite:
-		sprite.modulate = base_color
+func set_target(new_target: Node2D) -> void:
+	target = new_target
