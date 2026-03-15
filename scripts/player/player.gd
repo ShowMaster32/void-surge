@@ -66,7 +66,7 @@ const FRICTION      := 900.0
 ## Imposta i valori uguali alle dimensioni della tua arena (metà, perché si misura dal centro).
 @export var world_half_size: Vector2 = Vector2(1920, 1080)
 
-# ── POTERI ATTIVABILI ──────────────────────────────────────────────────────────
+# ── POTERI ATTIVABILI (slot Q + slot E) ───────────────────────────────────────
 const POWER_COOLDOWNS: Dictionary = {
 	"shield_burst": 8.0,
 	"plasma_bomb":  12.0,
@@ -79,9 +79,16 @@ const POWER_NAMES: Dictionary = {
 	"void_dash":    "Void Dash",
 	"time_surge":   "Time Surge",
 }
-var _active_power_id: String   = ""
-var _power_cooldown_max: float = 0.0
-var _power_cooldown: float     = 0.0
+# Slot Q (tasto Q / JOY X)
+var _power_q: String    = ""
+var _cd_max_q: float    = 0.0
+var _cd_q: float        = 0.0
+# Slot E (tasto E / JOY Y)
+var _power_e: String    = ""
+var _cd_max_e: float    = 0.0
+var _cd_e: float        = 0.0
+# Pierce bonus da arma attiva
+var _weapon_pierce_bonus: int = 0
 
 
 func _ready() -> void:
@@ -120,16 +127,27 @@ func _ready() -> void:
 	GameManager.coop_synergy_active.connect(_on_coop_synergy_changed)
 	EquipmentManager.equipment_stats_changed.connect(_recalculate_stats)
 
-	# ── potere attivabile selezionato nel MetaHub ─────────────────────────────
-	_active_power_id    = GameManager.get_meta("active_power", "") as String
-	_power_cooldown_max = POWER_COOLDOWNS.get(_active_power_id, 0.0)
+	# ── poteri attivabili: Q = slot 1, E = slot 2 ───────────────────────────
+	_power_q  = GameManager.get_meta("active_power_q", "") as String
+	_cd_max_q = POWER_COOLDOWNS.get(_power_q, 0.0)
+	_power_e  = GameManager.get_meta("active_power_e", "") as String
+	_cd_max_e = POWER_COOLDOWNS.get(_power_e, 0.0)
 
-	# Registra l'azione "activate_power" se non esiste già nel progetto
-	if not InputMap.has_action("activate_power"):
-		InputMap.add_action("activate_power")
-		var ev_key := InputEventKey.new()
-		ev_key.keycode = KEY_E
-		InputMap.action_add_event("activate_power", ev_key)
+	# Compatibilità con vecchio meta "active_power" (solo E)
+	if _power_e.is_empty() and GameManager.has_meta("active_power"):
+		_power_e  = GameManager.get_meta("active_power") as String
+		_cd_max_e = POWER_COOLDOWNS.get(_power_e, 0.0)
+
+	if not InputMap.has_action("activate_power_q"):
+		InputMap.add_action("activate_power_q")
+		var ev_q := InputEventKey.new()
+		ev_q.keycode = KEY_Q
+		InputMap.action_add_event("activate_power_q", ev_q)
+	if not InputMap.has_action("activate_power_e"):
+		InputMap.add_action("activate_power_e")
+		var ev_e := InputEventKey.new()
+		ev_e.keycode = KEY_E
+		InputMap.action_add_event("activate_power_e", ev_e)
 
 
 ## Disabilita la Camera2D interna se il SplitScreenManager gestisce le camere
@@ -169,6 +187,43 @@ func _recalculate_stats() -> void:
 	fire_rate    = maxf(fire_rate - eq_stats.get("fire_rate_bonus", 0.0), 0.05)
 	crit_chance  = minf(crit_chance + eq_stats.get("crit_bonus",   0.0), 0.95)
 	max_health   += eq_stats.get("health_bonus",    0.0)
+
+	# 3. Bonus da Shop (acquistati durante la run, salvati in GameManager metadata)
+	#    damage_pct = moltiplicatore %  |  speed/fire_rate/crit/health = valori flat
+	if GameManager.has_meta("shop_bonuses"):
+		var sb: Dictionary = GameManager.get_meta("shop_bonuses") as Dictionary
+		damage      *= 1.0 + sb.get("damage_pct",       0.0)
+		move_speed  += sb.get("speed_bonus",             0.0)
+		fire_rate    = maxf(fire_rate - sb.get("fire_rate_bonus", 0.0), 0.05)
+		crit_chance  = minf(crit_chance + sb.get("crit_bonus",   0.0), 0.95)
+		max_health  += sb.get("health_bonus",            0.0)
+
+	# 3.5  Bonus PERMANENTI da shop post-run (MetaManager.perm_upgrades)
+	#      Ogni punto acquistato aggiunge un'unità fissa di bonus.
+	var pu: Dictionary = MetaManager.perm_upgrades
+	max_health  += pu.get("perm_hp",    0) * 10.0
+	move_speed  += pu.get("perm_speed", 0) * 20.0
+	damage      *= 1.0 + pu.get("perm_dmg",  0) * 0.05
+	crit_chance  = minf(crit_chance + pu.get("perm_crit", 0) * 0.03, 0.95)
+	fire_rate    = maxf(fire_rate   - pu.get("perm_fr",   0) * 0.025, 0.05)
+
+	# 4. Modificatori arma attiva
+	_weapon_pierce_bonus = 0
+	var _wid: String = GameManager.get_meta("active_weapon", "") as String
+	match _wid:
+		"rapid":
+			fire_rate = maxf(fire_rate * 0.55, 0.05)
+			damage   *= 0.72
+		"heavy":
+			fire_rate            *= 1.75
+			damage               *= 2.8
+			_weapon_pierce_bonus  = 2
+		"spread":
+			damage *= 0.82
+		"twin":
+			damage *= 0.88
+		"void_seeker":
+			damage *= 1.20
 
 	# Clamp
 	move_speed   = maxf(move_speed, 50.0)
@@ -214,9 +269,8 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	_clamp_to_world()
 
-	# Decrementa cooldown potere attivabile
-	if _power_cooldown > 0.0:
-		_power_cooldown = maxf(_power_cooldown - delta, 0.0)
+	if _cd_q > 0.0: _cd_q = maxf(_cd_q - delta, 0.0)
+	if _cd_e > 0.0: _cd_e = maxf(_cd_e - delta, 0.0)
 
 
 ## Calcola la direzione di mira in modo affidabile per ogni input device.
@@ -310,45 +364,66 @@ func _shoot() -> void:
 		return
 
 	var aim_dir := _get_aim_dir()
-
-	# Distanza di spawn dal centro del player (default 24px)
 	var spawn_dist := 24.0
 	if muzzle:
 		var ml := muzzle.position.length()
 		if ml > 4.0:
 			spawn_dist = ml
 
-	var projectile := projectile_scene.instantiate()
-
-	# Spawn nella direzione di mira, non dalla posizione locale del Muzzle
-	projectile.global_position = global_position + aim_dir * spawn_dist
-	projectile.rotation        = aim_dir.angle()
-
-	# FIX DEFINITIVO — il proiettile usa "direction * speed * delta" in _physics_process
-	# e in _ready() fa: rotation = direction.angle()
-	# → va impostata PRIMA di add_child() così _ready() legge già aim_dir
-	if "direction" in projectile:
-		projectile.direction = aim_dir
-
 	var final_damage := _calculate_shot_damage()
 	var eq_stats: Dictionary = EquipmentManager.get_all_stats()
 	var pierce: int = eq_stats.get("pierce_count", 0) as int
+	if GameManager.has_meta("shop_pierce"):
+		pierce += GameManager.get_meta("shop_pierce") as int
+	pierce += _weapon_pierce_bonus
 
-	if projectile.has_method("setup"):
-		projectile.setup(final_damage, pierce, _meta_proj_scale)
+	var weapon_id: String = GameManager.get_meta("active_weapon", "") as String
+	match weapon_id:
+		"spread":
+			_spawn_proj(aim_dir.rotated(-deg_to_rad(15.0)), final_damage, pierce, spawn_dist)
+			_spawn_proj(aim_dir,                            final_damage, pierce, spawn_dist)
+			_spawn_proj(aim_dir.rotated( deg_to_rad(15.0)), final_damage, pierce, spawn_dist)
+		"twin":
+			var perp := aim_dir.rotated(deg_to_rad(90.0)) * 12.0
+			_spawn_proj(aim_dir, final_damage, pierce, spawn_dist,  perp)
+			_spawn_proj(aim_dir, final_damage, pierce, spawn_dist, -perp)
+		"void_seeker":
+			_spawn_proj(_get_seek_dir(aim_dir), final_damage, pierce, spawn_dist)
+		_:
+			_spawn_proj(aim_dir, final_damage, pierce, spawn_dist)
 
-	# Imposta danno e pierce direttamente se non c'è setup()
-	if "damage" in projectile:
-		projectile.damage = final_damage
-	if "pierce_count" in projectile and pierce > 0:
-		projectile.pierce_count = pierce
 
-	# add_child chiama _ready() del proiettile subito (sincrono in Godot 4)
-	get_tree().current_scene.add_child(projectile)
+func _spawn_proj(dir: Vector2, dmg: float, pierce: int,
+		spawn_dist: float, offset: Vector2 = Vector2.ZERO) -> void:
+	var p := projectile_scene.instantiate()
+	p.global_position = global_position + dir * spawn_dist + offset
+	p.rotation        = dir.angle()
+	if "direction" in p:
+		p.direction = dir
+	if "damage" in p:
+		p.damage = dmg
+	if "pierce_count" in p and pierce > 0:
+		p.pierce_count = pierce
+	if p.has_method("setup"):
+		p.setup(dmg, pierce, _meta_proj_scale)
+	get_tree().current_scene.add_child(p)
+	# Override dopo _ready() (Godot 4: add_child è sincrono)
+	if "direction" in p:
+		p.direction = dir
 
-	# Sicurezza: override direction anche dopo _ready() (nel caso _ready() la resetti)
-	if "direction" in projectile:
-		projectile.direction = aim_dir
+
+## Void Seeker: punta il nemico più vicino entro 400px
+func _get_seek_dir(default_dir: Vector2) -> Vector2:
+	var nearest_dist := 400.0
+	var nearest_dir  := default_dir
+	for enemy in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(enemy):
+			continue
+		var d := global_position.distance_to(enemy.global_position)
+		if d < nearest_dist:
+			nearest_dist = d
+			nearest_dir  = (enemy.global_position - global_position).normalized()
+	return nearest_dir
 
 
 func _calculate_shot_damage() -> float:
@@ -488,44 +563,56 @@ func _input(event: InputEvent) -> void:
 		if player_id == 0 or GameManager.player_count > 1:
 			GameManager.toggle_pause()
 
-	# Potere attivabile: tasto E (keyboard) oppure Y (controller)
-	if is_dead or _active_power_id.is_empty():
-		return
-	var is_e: bool = event.is_action_pressed("activate_power")
-	var is_y: bool = (event is InputEventJoypadButton and
-				 event.button_index == JOY_BUTTON_Y and event.pressed)
-	if is_e or is_y:
-		_use_power()
+	# Poteri: Q / JOY_X = slot 1    E / JOY_Y = slot 2
+	if not is_dead:
+		var is_q_kb:  bool = event.is_action_pressed("activate_power_q")
+		var is_q_joy: bool = (event is InputEventJoypadButton and
+			(event as InputEventJoypadButton).button_index == JOY_BUTTON_X and
+			(event as InputEventJoypadButton).pressed)
+		var is_e_kb:  bool = event.is_action_pressed("activate_power_e")
+		var is_e_joy: bool = (event is InputEventJoypadButton and
+			(event as InputEventJoypadButton).button_index == JOY_BUTTON_Y and
+			(event as InputEventJoypadButton).pressed)
+		if is_q_kb or is_q_joy: _try_activate_q()
+		if is_e_kb or is_e_joy: _try_activate_e()
 
 
 # ---------------------------------------------------------------------------
 # SISTEMA POTERI ATTIVABILI
 # ---------------------------------------------------------------------------
 
-## Restituisce il cooldown normalizzato [0..1] — 0 = pronto, 1 = appena usato
-## Usato dall'HUD per la barra cooldown
-func get_power_cooldown_ratio() -> float:
-	if _power_cooldown_max <= 0.0:
-		return 0.0
-	return clampf(_power_cooldown / _power_cooldown_max, 0.0, 1.0)
+## API pubblica per l'HUD ──────────────────────────────────────────────────
+func get_power_q_name() -> String:      return POWER_NAMES.get(_power_q, "")
+func get_power_e_name() -> String:      return POWER_NAMES.get(_power_e, "")
+func get_cd_ratio_q()   -> float:
+	return 0.0 if _cd_max_q <= 0.0 else clampf(_cd_q / _cd_max_q, 0.0, 1.0)
+func get_cd_ratio_e()   -> float:
+	return 0.0 if _cd_max_e <= 0.0 else clampf(_cd_e / _cd_max_e, 0.0, 1.0)
+# Alias backward-compat con HUD vecchio
+func get_active_power_name()    -> String: return get_power_e_name()
+func get_power_cooldown_ratio() -> float:  return get_cd_ratio_e()
 
 
-## Restituisce il nome leggibile del potere attivo (o "" se nessuno)
-func get_active_power_name() -> String:
-	return POWER_NAMES.get(_active_power_id, "")
-
-
-func _use_power() -> void:
-	if _power_cooldown > 0.0 or _active_power_id.is_empty():
+func _try_activate_q() -> void:
+	if _cd_q > 0.0 or _power_q.is_empty():
 		return
+	_execute_power(_power_q)
+	_cd_q = _cd_max_q
 
-	match _active_power_id:
+
+func _try_activate_e() -> void:
+	if _cd_e > 0.0 or _power_e.is_empty():
+		return
+	_execute_power(_power_e)
+	_cd_e = _cd_max_e
+
+
+func _execute_power(power_id: String) -> void:
+	match power_id:
 		"shield_burst": _power_shield_burst()
 		"plasma_bomb":  _power_plasma_bomb()
 		"void_dash":    _power_void_dash()
 		"time_surge":   _power_time_surge()
-
-	_power_cooldown = _power_cooldown_max
 
 
 ## Shield Burst — scudo impenetrabile per 1.5 secondi + flash bianco

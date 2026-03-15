@@ -1,4 +1,4 @@
-[gd_scene load_steps=16 format=3 uid="uid://main001"]
+[gd_scene load_steps=18 format=3 uid="uid://main001"]
 
 [ext_resource type="PackedScene" uid="uid://player001" path="res://scenes/player/player.tscn" id="1_player"]
 [ext_resource type="PackedScene" uid="uid://projectile001" path="res://scenes/projectiles/projectile.tscn" id="2_projectile"]
@@ -13,6 +13,8 @@
 [ext_resource type="PackedScene" uid="uid://equipui001" path="res://scenes/ui/equipment_ui.tscn" id="11_equip_ui"]
 [ext_resource type="PackedScene" uid="uid://notifier001" path="res://scenes/ui/milestone_notifier.tscn" id="12_notifier"]
 [ext_resource type="PackedScene" uid="uid://startscreen001" path="res://scenes/ui/start_screen.tscn" id="13_start"]
+[ext_resource type="PackedScene" uid="uid://shop001" path="res://scenes/ui/shop.tscn" id="14_shop"]
+[ext_resource type="PackedScene" uid="uid://resshop01" path="res://scenes/ui/run_end_shop.tscn" id="15_resshop"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("6_main")
@@ -39,3 +41,7 @@ enemy_scene = ExtResource("3_enemy")
 [node name="MilestoneNotifier" parent="." instance=ExtResource("12_notifier")]
 
 [node name="StartScreen" parent="." instance=ExtResource("13_start")]
+
+[node name="Shop" parent="." instance=ExtResource("14_shop")]
+
+[node name="RunEndShop" parent="." instance=ExtResource("15_resshop")]

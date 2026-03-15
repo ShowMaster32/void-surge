@@ -221,6 +221,10 @@ var unlocked_talents: Array = []       ## Lista talent_id acquistati
 var selected_character: String = "void_sentinel"
 var runs_per_character: Dictionary = {}  ## char_id → n° run completate
 
+## Upgrade permanenti acquistati nello shop post-run
+## Struttura: { "perm_hp": 3, "perm_dmg": 1, ... }  (count acquisti, cumulabili)
+var perm_upgrades: Dictionary = {}
+
 # ---------------------------------------------------------------------------
 # STATO RUNTIME (non salvato)
 # ---------------------------------------------------------------------------
@@ -481,6 +485,7 @@ func save_progress() -> void:
 		"unlocked_talents":   unlocked_talents,
 		"selected_character": selected_character,
 		"runs_per_character": runs_per_character,
+		"perm_upgrades":      perm_upgrades,
 	}
 
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
@@ -519,8 +524,24 @@ func load_progress() -> void:
 	unlocked_talents     = Array(parsed.get("unlocked_talents", []))
 	selected_character   = parsed.get("selected_character", "void_sentinel")
 	runs_per_character   = parsed.get("runs_per_character", {})
+	perm_upgrades        = parsed.get("perm_upgrades", {})
 
 	_init_defaults()
+
+
+## Acquista un upgrade permanente (run_end_shop lo chiama direttamente)
+func buy_perm_upgrade(upgrade_id: String, cost: int) -> bool:
+	if total_souls < cost:
+		return false
+	total_souls -= cost
+	perm_upgrades[upgrade_id] = perm_upgrades.get(upgrade_id, 0) + 1
+	save_progress()
+	return true
+
+
+## Ritorna il livello (count acquisti) di un upgrade permanente
+func get_perm_level(upgrade_id: String) -> int:
+	return perm_upgrades.get(upgrade_id, 0)
 
 
 func reset_all_progress() -> void:

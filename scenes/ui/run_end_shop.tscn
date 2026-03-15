@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://resshop01"]
+
+[ext_resource type="Script" path="res://scripts/ui/run_end_shop.gd" id="1_res"]
+
+[node name="RunEndShop" type="Node"]
+script = ExtResource("1_res")

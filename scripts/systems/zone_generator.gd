@@ -24,6 +24,9 @@ var hazards_container: Node2D
 # Seed per riproducibilità
 var generation_seed: int = 0
 
+# Nodo visuale bordi mappa (ricreato ad ogni cambio zona)
+var _boundary_visual: Node2D = null
+
 # Riferimenti ai preload
 const OBSTACLE_COLORS: Array[Color] = [
 	Color(0.3, 0.3, 0.35, 0.8),
@@ -114,6 +117,7 @@ func generate_zone(zone_index: int, custom_seed: int = -1) -> void:
 	_generate_background()
 	_generate_stars()
 	_generate_obstacles()
+	_generate_boundary_glow()
 	
 	if current_zone.hazard_enabled:
 		_setup_hazards()
@@ -345,6 +349,84 @@ func get_zone_by_id(zone_id: String) -> ZoneData:
 		if zone.zone_id == zone_id:
 			return zone
 	return null
+
+
+func _generate_boundary_glow() -> void:
+	## Crea strisce luminose neon ai bordi della zona – si aggiorna per ogni bioma.
+	if _boundary_visual and is_instance_valid(_boundary_visual):
+		_boundary_visual.queue_free()
+
+	_boundary_visual = Node2D.new()
+	_boundary_visual.name = "BoundaryGlow"
+	_boundary_visual.z_index = -50   # sopra stelle/background, sotto ostacoli
+	add_child(_boundary_visual)
+
+	var zone_col: Color = current_zone.ambient_color \
+		if current_zone else Color(0.55, 0.10, 1.00)
+
+	var half_w    := zone_size.x / 2.0
+	var half_h    := zone_size.y / 2.0
+	var thickness := 200.0   # spessore fascia luminosa (px)
+
+	var glow_shader := _create_edge_glow_shader()
+
+	# [posizione, dimensione, direction: 0=sinistra 1=destra 2=sopra 3=sotto]
+	var defs: Array = [
+		[Vector2(-half_w,               -half_h), Vector2(thickness, zone_size.y), 0.0],
+		[Vector2(half_w - thickness,    -half_h), Vector2(thickness, zone_size.y), 1.0],
+		[Vector2(-half_w,               -half_h), Vector2(zone_size.x, thickness), 2.0],
+		[Vector2(-half_w, half_h - thickness),    Vector2(zone_size.x, thickness), 3.0],
+	]
+
+	for d in defs:
+		var cr := ColorRect.new()
+		cr.position = d[0]
+		cr.size     = d[1]
+		var mat     := ShaderMaterial.new()
+		mat.shader  = glow_shader
+		mat.set_shader_parameter("edge_color",
+			Color(zone_col.r, zone_col.g, zone_col.b, 0.78))
+		mat.set_shader_parameter("direction", d[2])
+		cr.material = mat
+		_boundary_visual.add_child(cr)
+
+		# Pulsing asincrono per effetto respiro
+		var tween := cr.create_tween()
+		tween.set_loops()
+		tween.set_trans(Tween.TRANS_SINE)
+		var t_in  := randf_range(1.4, 2.4)
+		var t_out := randf_range(1.4, 2.4)
+		tween.tween_property(cr, "modulate:a", 0.38, t_in)
+		tween.tween_property(cr, "modulate:a", 1.00, t_out)
+
+
+func _create_edge_glow_shader() -> Shader:
+	## Gradiente da trasparente (interno) a neon (bordo esterno).
+	var s := Shader.new()
+	s.code = """
+shader_type canvas_item;
+
+uniform vec4  edge_color : source_color = vec4(0.55, 0.10, 1.0, 0.78);
+// direction: 0 = sinistra | 1 = destra | 2 = sopra | 3 = sotto
+uniform float direction = 0.0;
+
+void fragment() {
+	float t;
+	if      (direction < 0.5) t = 1.0 - UV.x;   // sinistra: max al bordo sx
+	else if (direction < 1.5) t = UV.x;           // destra:   max al bordo dx
+	else if (direction < 2.5) t = 1.0 - UV.y;    // sopra:    max al bordo top
+	else                       t = UV.y;            // sotto:    max al bordo bottom
+
+	// Curva quadratica: sfuma dolcemente verso l'interno
+	float alpha  = pow(t, 1.7) * edge_color.a;
+
+	// Sottile linea neon solida sul bordo esterno (ultimo 8%)
+	float neon   = step(0.92, t) * 0.55;
+
+	COLOR = vec4(edge_color.rgb, clamp(alpha + neon, 0.0, 1.0));
+}
+"""
+	return s
 
 
 func _generate_world_bounds() -> void:

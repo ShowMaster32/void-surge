@@ -10,11 +10,11 @@ signal wave_changed(wave: int)
 @export var spawn_margin: float = 100.0
 
 @export_group("Spawn Settings")
-@export var initial_spawn_rate: float = 2.0
-@export var max_spawn_rate: float = 10.0
-@export var spawn_rate_increase: float = 0.1
+@export var initial_spawn_rate: float = 1.2   # era 2.0 — ridotto per wave iniziali meno frenetiche
+@export var max_spawn_rate: float = 8.0       # era 10.0
+@export var spawn_rate_increase: float = 0.07 # era 0.1 — crescita più graduale
 @export var wave_duration: float = 30.0
-@export var max_enemies: int = 50
+@export var max_enemies: int = 40             # era 50
 
 var current_wave: int = 1
 var spawn_rate: float
@@ -26,6 +26,7 @@ var zone_generator: ZoneGenerator
 
 
 func _ready() -> void:
+	add_to_group("enemy_spawner")  # usato da shop.gd per agganciarsi a wave_changed
 	spawn_rate = initial_spawn_rate
 	await get_tree().process_frame
 	zone_generator = get_tree().get_first_node_in_group("zone_generator") as ZoneGenerator

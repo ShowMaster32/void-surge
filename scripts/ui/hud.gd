@@ -19,10 +19,14 @@ const C_LO  := Color(0.98, 0.20, 0.20)   # rosso vita bassa
 
 const BAR_W   := 210.0
 const BAR_H   := 18.0
-const PWR_H   := 8.0    # altezza barra cooldown potere
+const PWR_H   := 7.0    # altezza barra cooldown potere
 const CARD_W  := BAR_W + 50.0
-const CARD_H  := 114.0  # aumentata per includere riga potere (era 92)
+const CARD_H  := 148.0  # aumentata per due righe potere Q+E (era 114)
 const RADIUS  := 10     # angoli card / barra
+
+# Colori slot poteri
+const C_SLOT_Q := Color(0.20, 0.88, 1.00)   # cyan  – slot Q
+const C_SLOT_E := Color(1.00, 0.55, 0.12)   # arancio – slot E
 
 # ── nodi ──────────────────────────────────────────────────────────────────────
 var _canvas:         CanvasLayer
@@ -37,10 +41,13 @@ var _player_panels:  Array = []
 var _hp_fills:       Array = []
 var _hp_fill_styles: Array = []
 var _hp_labels:      Array = []
-# Potere attivabile per carta giocatore
-var _pwr_fills:      Array = []
-var _pwr_fill_styles: Array = []
-var _pwr_labels:     Array = []
+# Slot Q (cyan) e Slot E (arancio) – uno per carta giocatore
+var _pwr_q_fills:       Array = []
+var _pwr_q_fill_styles: Array = []
+var _pwr_q_labels:      Array = []   # ogni entry = [name_lbl, cd_lbl]
+var _pwr_e_fills:       Array = []
+var _pwr_e_fill_styles: Array = []
+var _pwr_e_labels:      Array = []   # ogni entry = [name_lbl, cd_lbl]
 
 # ── stato ─────────────────────────────────────────────────────────────────────
 var _players:    Array = []
@@ -55,10 +62,13 @@ var _poll_timer: float = 0.0
 # ══════════════════════════════════════════════
 
 func _ready() -> void:
+	# PROCESS_MODE_ALWAYS: l'HUD continua ad aggiornarsi anche durante la pausa shop
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	for c in get_children():
 		c.queue_free()
 	_canvas = CanvasLayer.new()
 	_canvas.layer = 20
+	_canvas.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(_canvas)
 	_build_ui()
 	_hook_signals()
@@ -244,52 +254,71 @@ func _build_player_card(idx: int, col: Color) -> Control:
 	_hp_fills.append(bar_fill)
 	_hp_fill_styles.append(fill_style)
 
-	# ── riga potere attivabile ────────────────────────────────────────────────
-	var pwr_row := HBoxContainer.new()
-	pwr_row.add_theme_constant_override("separation", 6)
-	pwr_row.custom_minimum_size = Vector2(BAR_W, 0)
-	vbox.add_child(pwr_row)
+	# ── slot Q (cyan) ─────────────────────────────────────────────────────────
+	_build_power_row(vbox, "Q", C_SLOT_Q, _pwr_q_fills, _pwr_q_fill_styles, _pwr_q_labels)
 
-	var pwr_lbl := _lbl("", 11, Color(0.60, 0.60, 0.85))
-	pwr_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	pwr_lbl.horizontal_alignment  = HORIZONTAL_ALIGNMENT_LEFT
-	pwr_row.add_child(pwr_lbl)
-	_pwr_labels.append(pwr_lbl)
-
-	var pwr_cd_lbl := _lbl("PRONTO", 11, Color(0.20, 1.00, 0.55))
-	pwr_row.add_child(pwr_cd_lbl)
-	# reuse stesso array — il secondo elemento per card è la cd label
-	# usiamo _pwr_fills[i] = bar_fill nodo, _pwr_fill_styles[i] = style
-	# e lo cd_label è incluso in _pwr_labels come coppia [name_lbl, cd_lbl]
-	# ma manteniamo un array separato per cd label
-	# (ridefinita sotto con _pwr_cd_labels)
-
-	var pwr_bar_root := Control.new()
-	pwr_bar_root.custom_minimum_size = Vector2(BAR_W, PWR_H)
-	pwr_bar_root.clip_children = CanvasItem.CLIP_CHILDREN_ONLY
-	vbox.add_child(pwr_bar_root)
-
-	var pwr_bg := Panel.new()
-	pwr_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	pwr_bg.add_theme_stylebox_override("panel",
-		_mk_style(Color(0.07, 0.07, 0.18), Color.TRANSPARENT, RADIUS, 0))
-	pwr_bar_root.add_child(pwr_bg)
-
-	var pwr_fill_style := _mk_style(Color(0.55, 0.22, 1.00), Color.TRANSPARENT, RADIUS, 0)
-	var pwr_fill := Panel.new()
-	pwr_fill.position = Vector2.ZERO
-	pwr_fill.size     = Vector2(BAR_W, PWR_H)
-	pwr_fill.add_theme_stylebox_override("panel", pwr_fill_style)
-	pwr_bar_root.add_child(pwr_fill)
-
-	_pwr_fills.append(pwr_fill)
-	_pwr_fill_styles.append(pwr_fill_style)
-
-	# Sostituisce il placeholder _pwr_labels con coppia [name, cd_text]
-	# — riscriviamo l'ultimo append con la coppia
-	_pwr_labels[_pwr_labels.size() - 1] = [pwr_lbl, pwr_cd_lbl]
+	# ── slot E (arancio) ──────────────────────────────────────────────────────
+	_build_power_row(vbox, "E", C_SLOT_E, _pwr_e_fills, _pwr_e_fill_styles, _pwr_e_labels)
 
 	return card
+
+
+## Costruisce una riga potere (key label + nome + cd text + barra) e popola gli array.
+func _build_power_row(
+		vbox: VBoxContainer,
+		key_txt: String,
+		slot_col: Color,
+		fills: Array, fill_styles: Array, labels: Array) -> void:
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 5)
+	row.custom_minimum_size = Vector2(BAR_W, 0)
+	vbox.add_child(row)
+
+	# badge tasto [Q] / [E]
+	var key_badge := PanelContainer.new()
+	var kb_style := _mk_style(Color(slot_col.r, slot_col.g, slot_col.b, 0.18),
+		slot_col, 5, 1)
+	kb_style.content_margin_left   = 5.0
+	kb_style.content_margin_right  = 5.0
+	kb_style.content_margin_top    = 0.0
+	kb_style.content_margin_bottom = 0.0
+	key_badge.add_theme_stylebox_override("panel", kb_style)
+	key_badge.add_child(_lbl("[%s]" % key_txt, 10, slot_col))
+	row.add_child(key_badge)
+
+	var name_lbl := _lbl("", 11, Color(0.78, 0.78, 0.95))
+	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_lbl.horizontal_alignment  = HORIZONTAL_ALIGNMENT_LEFT
+	row.add_child(name_lbl)
+
+	var cd_lbl := _lbl("", 11, Color(0.20, 1.00, 0.55))
+	row.add_child(cd_lbl)
+
+	labels.append([name_lbl, cd_lbl])
+
+	# barra cooldown
+	var bar_root := Control.new()
+	bar_root.custom_minimum_size = Vector2(BAR_W, PWR_H)
+	bar_root.clip_children = CanvasItem.CLIP_CHILDREN_ONLY
+	vbox.add_child(bar_root)
+
+	var bar_bg := Panel.new()
+	bar_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bar_bg.add_theme_stylebox_override("panel",
+		_mk_style(Color(0.07, 0.07, 0.18), Color.TRANSPARENT, RADIUS, 0))
+	bar_root.add_child(bar_bg)
+
+	var base_col := slot_col.darkened(0.35)
+	var fill_style := _mk_style(base_col, Color.TRANSPARENT, RADIUS, 0)
+	var fill := Panel.new()
+	fill.position = Vector2.ZERO
+	fill.size     = Vector2(BAR_W, PWR_H)
+	fill.add_theme_stylebox_override("panel", fill_style)
+	bar_root.add_child(fill)
+
+	fills.append(fill)
+	fill_styles.append(fill_style)
 
 
 # ══════════════════════════════════════════════
@@ -372,7 +401,9 @@ func _on_synergy(active: bool) -> void:
 # ══════════════════════════════════════════════
 
 func _process(delta: float) -> void:
-	_elapsed += delta
+	# Il timer si blocca quando il gioco non è in PLAYING (shop aperto, pausa menu, ecc.)
+	if GameManager.current_state == GameManager.GameState.PLAYING:
+		_elapsed += delta
 	_timer_lbl.text = "%02d:%02d" % [int(_elapsed) / 60, int(_elapsed) % 60]
 
 	_poll_timer += delta
@@ -509,49 +540,65 @@ func _update_hp_bars() -> void:
 
 		_hp_labels[i].text = "%d / %d" % [int(hp), int(max_hp)]
 
-		# ── barra cooldown potere ─────────────────────────────────────────────
-		if i >= _pwr_labels.size():
-			continue
-		var pair = _pwr_labels[i]
-		if not (pair is Array and pair.size() == 2):
-			continue
-		var name_lbl: Label = pair[0]
-		var cd_lbl:   Label = pair[1]
-		var pwr_fill: Panel       = _pwr_fills[i]
-		var pwr_fs: StyleBoxFlat  = _pwr_fill_styles[i]
+		# ── slot Q ────────────────────────────────────────────────────────────
+		if i < _pwr_q_labels.size():
+			var pq_name:  String = p.get_power_q_name()  if p.has_method("get_power_q_name")  else ""
+			var pq_ratio: float  = p.get_cd_ratio_q()    if p.has_method("get_cd_ratio_q")    else 0.0
+			_update_power_slot(i, pq_name, pq_ratio, p, "q",
+				_pwr_q_labels, _pwr_q_fills, _pwr_q_fill_styles, C_SLOT_Q)
 
-		# Legge metodo get_active_power_name() e get_power_cooldown_ratio() se il player li ha
-		var pname: String = ""
-		var cd_ratio: float = 0.0
-		if p.has_method("get_active_power_name"):
-			pname = p.get_active_power_name()
-		if p.has_method("get_power_cooldown_ratio"):
-			cd_ratio = p.get_power_cooldown_ratio()
+		# ── slot E ────────────────────────────────────────────────────────────
+		if i < _pwr_e_labels.size():
+			var pe_name:  String = p.get_power_e_name()  if p.has_method("get_power_e_name")  else \
+				(p.get_active_power_name()    if p.has_method("get_active_power_name")   else "")
+			var pe_ratio: float  = p.get_cd_ratio_e()    if p.has_method("get_cd_ratio_e")    else \
+				(p.get_power_cooldown_ratio() if p.has_method("get_power_cooldown_ratio") else 0.0)
+			_update_power_slot(i, pe_name, pe_ratio, p, "e",
+				_pwr_e_labels, _pwr_e_fills, _pwr_e_fill_styles, C_SLOT_E)
 
-		if pname.is_empty():
-			name_lbl.text = ""
-			cd_lbl.text   = ""
-			pwr_fill.size.x = 0.0
+
+## Aggiorna un singolo slot potere (Q o E) nella card del giocatore i.
+func _update_power_slot(
+		i: int, pname: String, cd_ratio: float, p: Object, slot: String,
+		labels: Array, fills: Array, fill_styles: Array, slot_col: Color) -> void:
+
+	var pair = labels[i]
+	if not (pair is Array and pair.size() == 2):
+		return
+	var name_lbl: Label      = pair[0]
+	var cd_lbl:   Label      = pair[1]
+	var pwr_fill: Panel      = fills[i]
+	var pwr_fs: StyleBoxFlat = fill_styles[i]
+
+	if pname.is_empty():
+		name_lbl.text   = ""
+		cd_lbl.text     = ""
+		pwr_fill.size.x = 0.0
+	else:
+		name_lbl.text = pname
+		var ready := 1.0 - cd_ratio
+		pwr_fill.size.x = lerpf(pwr_fill.size.x, BAR_W * ready, 0.20)
+		if cd_ratio <= 0.0:
+			cd_lbl.text = "PRONTO"
+			cd_lbl.add_theme_color_override("font_color", Color(0.20, 1.00, 0.55))
+			pwr_fs.bg_color = pwr_fs.bg_color.lerp(slot_col.lightened(0.15), 0.15)
 		else:
-			name_lbl.text = pname
-			# ready_ratio = 1 - cd_ratio  (pieno = pronto, vuoto = in cooldown)
-			var ready := 1.0 - cd_ratio
-			pwr_fill.size.x = lerpf(pwr_fill.size.x, BAR_W * ready, 0.20)
-			if cd_ratio <= 0.0:
-				cd_lbl.text = "PRONTO"
-				cd_lbl.add_theme_color_override("font_color", Color(0.20, 1.00, 0.55))
-				pwr_fs.bg_color = pwr_fs.bg_color.lerp(Color(0.20, 1.00, 0.55), 0.15)
-			else:
-				cd_lbl.text = "%.1fs" % (cd_ratio * _get_power_cd_max(p))
-				cd_lbl.add_theme_color_override("font_color", Color(0.60, 0.60, 0.85))
-				pwr_fs.bg_color = pwr_fs.bg_color.lerp(Color(0.55, 0.22, 1.00), 0.15)
+			var cd_max := _get_power_cd_max(p, slot)
+			cd_lbl.text = "%.1fs" % (cd_ratio * cd_max)
+			cd_lbl.add_theme_color_override("font_color", Color(0.60, 0.60, 0.85))
+			pwr_fs.bg_color = pwr_fs.bg_color.lerp(slot_col.darkened(0.35), 0.15)
 
 
-## Legge _power_cooldown_max dal player (se disponibile)
-func _get_power_cd_max(p: Object) -> float:
-	var v = p.get("_power_cooldown_max")
+## Legge il cooldown massimo per lo slot ("q" o "e") dal player.
+func _get_power_cd_max(p: Object, slot: String = "e") -> float:
+	var key := "_cd_max_q" if slot == "q" else "_cd_max_e"
+	var v = p.get(key)
 	if v is float and v > 0.0:
 		return v
+	# fallback legacy
+	var v2 = p.get("_power_cooldown_max")
+	if v2 is float and v2 > 0.0:
+		return v2
 	return 1.0
 
 

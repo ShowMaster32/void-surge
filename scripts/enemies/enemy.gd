@@ -110,6 +110,9 @@ func _find_sprite() -> Node2D:
 func _physics_process(delta: float) -> void:
 	if is_dead:
 		return
+	# Freeze durante shop o pausa — non muoversi se il gioco non è in PLAYING
+	if GameManager.current_state != GameManager.GameState.PLAYING:
+		return
 	# Auto-trova il giocatore più vicino se non abbiamo un target valido
 	if not is_instance_valid(target):
 		_find_nearest_player()

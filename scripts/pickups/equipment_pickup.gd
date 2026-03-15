@@ -19,8 +19,10 @@ var target_player: Node2D = null
 @onready var lifetime_timer: Timer = $LifetimeTimer
 @onready var glow_effect: PointLight2D = $GlowEffect
 
-## Dimensione texture generata proceduralmente
-const SHAPE_SIZE := 32
+## Dimensione texture generata proceduralmente (ridotta: i pickup devono essere
+## visivamente più piccoli dei nemici, ma con halo luminoso ben visibile)
+const SHAPE_SIZE  := 20
+const RING_SIZE   := 36   # Dimensione texture anello halo esterno
 
 
 func _ready() -> void:
@@ -89,20 +91,69 @@ func _setup_visuals() -> void:
 	var rarity_color := equipment.get_rarity_color()
 
 	if sprite:
-		# Genera texture con la forma giusta per il tipo di equipment
 		sprite.texture = _build_shape_texture(equipment.equipment_type)
 		sprite.modulate = equipment.glow_color
-		# Scala basata sulla rarità: più raro = leggermente più grande
-		var rarity_scale := 1.0 + equipment.rarity * 0.12
+		# Scala: comune piccolo, leggendario leggermente più grande
+		var rarity_scale := 0.85 + equipment.rarity * 0.08
 		sprite.scale = Vector2(rarity_scale, rarity_scale)
 
 	if glow_effect:
 		glow_effect.color = rarity_color
 		match equipment.rarity:
-			EquipmentData.Rarity.COMMON:    glow_effect.energy = 0.5
-			EquipmentData.Rarity.RARE:      glow_effect.energy = 1.0
-			EquipmentData.Rarity.EPIC:      glow_effect.energy = 1.5
-			EquipmentData.Rarity.LEGENDARY: glow_effect.energy = 2.2
+			EquipmentData.Rarity.COMMON:    glow_effect.energy = 1.0
+			EquipmentData.Rarity.RARE:      glow_effect.energy = 1.8
+			EquipmentData.Rarity.EPIC:      glow_effect.energy = 2.8
+			EquipmentData.Rarity.LEGENDARY: glow_effect.energy = 4.0
+
+	# ── Halo anello esterno ────────────────────────────────────────────────
+	var old_halo := get_node_or_null("PickupHalo")
+	if old_halo:
+		old_halo.queue_free()
+
+	var halo := Sprite2D.new()
+	halo.name     = "PickupHalo"
+	halo.texture  = _build_ring_texture(rarity_color)
+	halo.z_index  = -1
+	halo.modulate = Color(rarity_color.r, rarity_color.g, rarity_color.b, 0.70)
+	halo.scale    = Vector2(2.2, 2.2)
+	add_child(halo)
+
+	# Pulsing halo (scala)
+	var ht := halo.create_tween()
+	ht.set_loops()
+	ht.set_trans(Tween.TRANS_SINE)
+	ht.set_ease(Tween.EASE_IN_OUT)
+	ht.tween_property(halo, "scale", Vector2(2.8, 2.8), 0.85)
+	ht.tween_property(halo, "scale", Vector2(2.2, 2.2), 0.85)
+
+	# Alpha pulsing sfasato
+	var hat := halo.create_tween()
+	hat.set_loops()
+	hat.set_trans(Tween.TRANS_SINE)
+	hat.tween_property(halo, "modulate:a", 0.30, 0.95)
+	hat.tween_property(halo, "modulate:a", 0.75, 0.95)
+
+	# ── Etichetta rarità flottante ─────────────────────────────────────────
+	var old_lbl := get_node_or_null("RarityBadge")
+	if old_lbl:
+		old_lbl.queue_free()
+
+	var rlbl := Label.new()
+	rlbl.name = "RarityBadge"
+	rlbl.text = _rarity_icon(equipment.rarity)
+	rlbl.position = Vector2(-6.0, -24.0)
+	rlbl.add_theme_font_size_override("font_size", 11)
+	rlbl.add_theme_color_override("font_color", rarity_color)
+	rlbl.add_theme_constant_override("outline_size", 3)
+	rlbl.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.9))
+	add_child(rlbl)
+
+	# Bob label in sincrono con lo sprite
+	var lt := rlbl.create_tween()
+	lt.set_loops()
+	lt.set_trans(Tween.TRANS_SINE)
+	lt.tween_property(rlbl, "position:y", -28.0, 0.7)
+	lt.tween_property(rlbl, "position:y", -22.0, 0.7)
 
 
 # ---------------------------------------------------------------------------
@@ -175,6 +226,38 @@ func _shape_alpha(dx: float, dy: float, r: float, eq_type: EquipmentData.Equipme
 	# Fallback cerchio
 	var fallback_dist: float = sqrt(dx * dx + dy * dy)
 	return clampf((r - fallback_dist) / ANTIALIAS, 0.0, 1.0)
+
+
+# ---------------------------------------------------------------------------
+# TEXTURE HELPERS (halo + rarity icon)
+# ---------------------------------------------------------------------------
+
+func _build_ring_texture(col: Color) -> ImageTexture:
+	## Genera un anello/donut 36×36 con sfumatura radiale per l'halo esterno.
+	var img  := Image.create(RING_SIZE, RING_SIZE, false, Image.FORMAT_RGBA8)
+	var cx   := RING_SIZE / 2.0
+	var inner_r := RING_SIZE * 0.28
+	var outer_r := RING_SIZE * 0.50
+	var mid     := (inner_r + outer_r) * 0.5
+	var half_w  := (outer_r - inner_r) * 0.5
+
+	for px in RING_SIZE:
+		for py in RING_SIZE:
+			var d := Vector2(px - cx, py - cx).length()
+			if d >= inner_r and d <= outer_r:
+				var t := 1.0 - absf(d - mid) / half_w
+				img.set_pixel(px, py, Color(1.0, 1.0, 1.0, t * t * 0.85))
+
+	return ImageTexture.create_from_image(img)
+
+
+func _rarity_icon(rarity: EquipmentData.Rarity) -> String:
+	match rarity:
+		EquipmentData.Rarity.COMMON:    return "◇"
+		EquipmentData.Rarity.RARE:      return "◆"
+		EquipmentData.Rarity.EPIC:      return "★"
+		EquipmentData.Rarity.LEGENDARY: return "✦"
+	return "◇"
 
 
 # ---------------------------------------------------------------------------

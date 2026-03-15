@@ -79,6 +79,11 @@ func start_game(num_players: int = 1) -> void:
 	current_wave = 1
 	coop_synergy_enabled = false
 	players.clear()
+	# Azzera i bonus acquistati nello shop (sono run-scoped, non persistenti)
+	if has_meta("shop_bonuses"):
+		remove_meta("shop_bonuses")
+	if has_meta("shop_pierce"):
+		remove_meta("shop_pierce")
 	game_started.emit()
 
 
