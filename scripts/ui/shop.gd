@@ -52,6 +52,34 @@ const RARITY_WEIGHTS: Dictionary = {
 ##   pierce          → +val proiettili piercing
 ##   souls_bonus     → ricevi subito val Souls
 ##   reroll          → rimescola gli oggetti nello shop
+# ── Colori slot poteri (coerente con HUD) ─────────────────────────────────────
+const C_SLOT_Q := Color(0.20, 0.88, 1.00)   # cyan  – slot Q
+const C_SLOT_E := Color(1.00, 0.55, 0.12)   # arancio – slot E
+
+# ── Catalogo poteri acquistabili ───────────────────────────────────────────────
+const POWER_CATALOG: Array = [
+	{
+		"id": "void_dash",    "name": "Void Dash",     "icon": "💨",
+		"desc": "Scatto rapidissimo nella direzione di mira.\nInvincibile per 0.25s durante il dash.",
+		"cd": 6.0,  "cost": 100,
+	},
+	{
+		"id": "shield_burst", "name": "Shield Burst",  "icon": "🛡️",
+		"desc": "Scudo energetico: invincibile per 1.5s.\nFlash bianco che respinge i proiettili.",
+		"cd": 8.0,  "cost": 120,
+	},
+	{
+		"id": "plasma_bomb",  "name": "Plasma Bomb",   "icon": "💥",
+		"desc": "Esplosione AOE raggio 250px a 5× danno.\nColpisce tutti i nemici nell'area.",
+		"cd": 12.0, "cost": 150,
+	},
+	{
+		"id": "time_surge",   "name": "Time Surge",    "icon": "⏳",
+		"desc": "Rallenta tutti i nemici al 25% della velocità per 4 secondi.",
+		"cd": 18.0, "cost": 200,
+	},
+]
+
 const ITEM_CATALOG: Array = [
 	{
 		"id": "heal_small", "name": "Nano-Riparazione",     "icon": "💚",
@@ -118,10 +146,14 @@ const ITEM_CATALOG: Array = [
 # ── Stato ─────────────────────────────────────────────────────────────────────
 var _canvas:        CanvasLayer
 var _souls_lbl:     Label
-var _item_grid:     HBoxContainer
+var _item_grid:     HBoxContainer   # griglia oggetti (tab 0)
+var _content_area:  Control         # contenitore generico sostituito ad ogni cambio tab
 var _title_lbl:     Label
 var _current_items: Array = []
 var _is_open:       bool  = false
+# Tab: 0=Potenziamenti  1=Potere Q  2=Potere E
+var _current_tab:   int   = 0
+var _tab_btns:      Array = []
 
 
 # ══════════════════════════════════════════════
@@ -137,9 +169,9 @@ func _ready() -> void:
 	_hook_wave_signal()
 
 
-## F2 via _unhandled_key_input: funziona anche con get_tree().paused = true
-## e non viene "rubato" da altri nodi (più affidabile di _input per shortcut globali)
+## F2 / tasto B controller per aprire-chiudere lo shop
 func _unhandled_key_input(event: InputEvent) -> void:
+	# F2 da tastiera (debug toggle)
 	if debug_key_open and event is InputEventKey \
 			and (event as InputEventKey).pressed \
 			and (event as InputEventKey).keycode == KEY_F2:
@@ -148,6 +180,14 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_close()
 		else:
 			_open()
+		return
+
+	# Tasto B / Circle del controller → chiudi shop
+	if _is_open and event is InputEventJoypadButton \
+			and (event as InputEventJoypadButton).pressed \
+			and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B:
+		get_viewport().set_input_as_handled()
+		_close()
 
 
 ## Si aggancia al segnale wave_changed dell'EnemySpawner (trovato tramite gruppo).
@@ -226,12 +266,48 @@ func _build_ui() -> void:
 	sep_line.custom_minimum_size = Vector2(0, 2)
 	vbox.add_child(sep_line)
 
-	# ── Griglia oggetti ────────────────────────────────────────────────────────
+	# ── Tab bar ────────────────────────────────────────────────────────────────
+	var tab_bar := HBoxContainer.new()
+	tab_bar.add_theme_constant_override("separation", 6)
+	vbox.add_child(tab_bar)
+
+	var tab_defs: Array = [
+		["⚡  POTENZIAMENTI", C_ACC],
+		["◈  POTERE  Q",     C_SLOT_Q],
+		["◈  POTERE  E",     C_SLOT_E],
+	]
+	for ti: int in tab_defs.size():
+		var td: Array = tab_defs[ti]
+		var tb := _action_btn(td[0] as String, td[1] as Color)
+		tb.custom_minimum_size = Vector2(190, 36)
+		tb.add_theme_font_size_override("font_size", 13)
+		tb.focus_mode = Control.FOCUS_ALL
+		var idx := ti   # capture
+		tb.pressed.connect(func(): _switch_tab(idx))
+		tab_bar.add_child(tb)
+		_tab_btns.append(tb)
+
+	_refresh_tab_buttons()
+
+	# Linea sotto tab
+	var tab_line := ColorRect.new()
+	tab_line.color              = Color(C_ACC.r, C_ACC.g, C_ACC.b, 0.20)
+	tab_line.custom_minimum_size = Vector2(0, 1)
+	vbox.add_child(tab_line)
+
+	# ── Area contenuto (ricostruita ad ogni cambio tab) ────────────────────────
+	_content_area = Control.new()
+	_content_area.size_flags_vertical   = Control.SIZE_EXPAND_FILL
+	_content_area.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox.add_child(_content_area)
+
+	# Compatibilità: _item_grid punta al primo figlio dell'area
 	_item_grid = HBoxContainer.new()
 	_item_grid.add_theme_constant_override("separation", 16)
-	_item_grid.alignment         = BoxContainer.ALIGNMENT_CENTER
+	_item_grid.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_item_grid.alignment          = BoxContainer.ALIGNMENT_CENTER
 	_item_grid.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	vbox.add_child(_item_grid)
+	_content_area.add_child(_item_grid)
 
 	# ── Footer ────────────────────────────────────────────────────────────────
 	var footer_sep := ColorRect.new()
@@ -252,7 +328,14 @@ func _build_ui() -> void:
 
 	var skip_btn := _action_btn("Continua  ▶", C_ACC)
 	skip_btn.pressed.connect(_close)
+	skip_btn.focus_mode = Control.FOCUS_ALL
+	skip_btn.name = "SkipBtn"
 	footer.add_child(skip_btn)
+
+	var ctrl_hint := _lbl("🎮  [A] Compra  [B] Chiudi  [D-pad / LS] Naviga", 10, C_DIM)
+	ctrl_hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ctrl_hint.horizontal_alignment  = HORIZONTAL_ALIGNMENT_RIGHT
+	footer.add_child(ctrl_hint)
 
 
 # ══════════════════════════════════════════════
@@ -272,10 +355,9 @@ func _open() -> void:
 	_refresh_souls()
 	_update_title()
 	_canvas.visible = true
-	# Usa current_state invece di get_tree().paused:
-	# così i bottoni UI ricevono normalmente input e click,
-	# mentre player/nemici/spawner si fermano perché controllano current_state == PLAYING
 	GameManager.current_state = GameManager.GameState.PAUSED
+	# Controller: dai focus al primo bottone acquistabile (o SkipBtn)
+	_grab_first_focus()
 
 
 func _close() -> void:
@@ -291,6 +373,49 @@ func _close() -> void:
 ## Apri manualmente — utile dal WaveSpawner o da un pulsante debug
 func open() -> void:
 	_open()
+
+
+# ══════════════════════════════════════════════
+#  Tab management
+# ══════════════════════════════════════════════
+
+func _switch_tab(idx: int) -> void:
+	_current_tab = idx
+	_refresh_tab_buttons()
+	_rebuild_grid()
+	_grab_first_focus()
+
+
+func _refresh_tab_buttons() -> void:
+	## Evidenzia il bottone della tab attiva, opacizza gli altri.
+	for i: int in _tab_btns.size():
+		var tb: Button = _tab_btns[i] as Button
+		tb.modulate = Color.WHITE if i == _current_tab else Color(1, 1, 1, 0.45)
+
+
+func _grab_first_focus() -> void:
+	## Dà il focus al primo bottone acquistabile per navigazione controller.
+	## Usato ogni volta che lo shop apre o cambia tab.
+	await get_tree().process_frame
+	# Cerca il primo Button abilitato nell'area contenuto (qualunque tab)
+	var btn := _find_first_button(_content_area)
+	if btn and not btn.disabled:
+		btn.grab_focus()
+		return
+	# Fallback: pulsante "Continua"
+	var skip := _canvas.find_child("SkipBtn", true, false)
+	if skip is Button:
+		(skip as Button).grab_focus()
+
+
+func _find_first_button(node: Node) -> Button:
+	if node is Button:
+		return node as Button
+	for child in node.get_children():
+		var found := _find_first_button(child)
+		if found:
+			return found
+	return null
 
 
 # ══════════════════════════════════════════════
@@ -326,10 +451,152 @@ func _roll_items() -> void:
 
 
 func _rebuild_grid() -> void:
-	for c in _item_grid.get_children():
+	# Svuota l'area contenuto
+	for c: Node in _content_area.get_children():
 		c.queue_free()
-	for item in _current_items:
-		_item_grid.add_child(_build_item_card(item))
+
+	match _current_tab:
+		0:  # Potenziamenti
+			_item_grid = HBoxContainer.new()
+			_item_grid.add_theme_constant_override("separation", 16)
+			_item_grid.set_anchors_preset(Control.PRESET_FULL_RECT)
+			_item_grid.alignment          = BoxContainer.ALIGNMENT_CENTER
+			_item_grid.size_flags_vertical = Control.SIZE_EXPAND_FILL
+			_content_area.add_child(_item_grid)
+			for item: Dictionary in _current_items:
+				_item_grid.add_child(_build_item_card(item))
+		1:
+			_rebuild_powers_tab("q")
+		2:
+			_rebuild_powers_tab("e")
+
+
+# ══════════════════════════════════════════════
+#  Tab Poteri Q / E
+# ══════════════════════════════════════════════
+
+func _rebuild_powers_tab(slot_key: String) -> void:
+	var slot_col: Color = C_SLOT_Q if slot_key == "q" else C_SLOT_E
+	var meta_key: String = "active_power_" + slot_key
+
+	# Potere attualmente equipaggiato in questo slot
+	var equipped_id: String = ""
+	if GameManager.has_meta(meta_key):
+		equipped_id = GameManager.get_meta(meta_key) as String
+
+	var grid := HBoxContainer.new()
+	grid.add_theme_constant_override("separation", 16)
+	grid.set_anchors_preset(Control.PRESET_FULL_RECT)
+	grid.alignment          = BoxContainer.ALIGNMENT_CENTER
+	grid.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_content_area.add_child(grid)
+
+	for power: Dictionary in POWER_CATALOG:
+		grid.add_child(_build_power_card(power, slot_key, slot_col, equipped_id))
+
+
+func _build_power_card(
+		power: Dictionary,
+		slot_key: String,
+		slot_col: Color,
+		equipped_id: String) -> PanelContainer:
+
+	var pid:  String = power["id"]
+	var cost: int    = power["cost"] as int
+	var is_equipped: bool = (pid == equipped_id)
+	var affordable: bool  = MetaManager.total_souls >= cost or is_equipped
+
+	var border_col := slot_col if not is_equipped else Color.WHITE
+	var pc := PanelContainer.new()
+	pc.custom_minimum_size = Vector2(196, 230)
+	var sty := _mk_style(
+		Color(slot_col.r * 0.07, slot_col.g * 0.07, slot_col.b * 0.07, 0.97),
+		border_col if affordable else C_DIM,
+		12, 2 if (affordable or is_equipped) else 1)
+	sty.content_margin_left   = 14.0
+	sty.content_margin_right  = 14.0
+	sty.content_margin_top    = 12.0
+	sty.content_margin_bottom = 12.0
+	pc.add_theme_stylebox_override("panel", sty)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 7)
+	pc.add_child(vbox)
+
+	# Icona + badge SLOT
+	var top_row := HBoxContainer.new()
+	top_row.add_theme_constant_override("separation", 6)
+	vbox.add_child(top_row)
+	top_row.add_child(_lbl(power["icon"] as String, 32, slot_col))
+	var badge_txt := ("SLOT " + slot_key.to_upper()) + ("  ✓" if is_equipped else "")
+	var badge := _lbl(badge_txt, 9, slot_col if not is_equipped else Color.WHITE)
+	badge.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	badge.horizontal_alignment  = HORIZONTAL_ALIGNMENT_RIGHT
+	badge.vertical_alignment    = VERTICAL_ALIGNMENT_BOTTOM
+	top_row.add_child(badge)
+
+	# Nome
+	vbox.add_child(_lbl(power["name"] as String, 15,
+		slot_col if not is_equipped else Color.WHITE, 1, Color(0, 0, 0, 0.7)))
+
+	# Cooldown
+	var cd_lbl := _lbl("⏱  CD: %.0fs" % (power["cd"] as float), 11, C_DIM)
+	vbox.add_child(cd_lbl)
+
+	# Descrizione
+	var desc := _lbl(power["desc"] as String, 11, C_HI)
+	desc.autowrap_mode       = TextServer.AUTOWRAP_WORD_SMART
+	desc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vbox.add_child(desc)
+
+	# Bottone
+	var btn := Button.new()
+	btn.add_theme_font_size_override("font_size", 14)
+	btn.custom_minimum_size = Vector2(0, 36)
+	btn.focus_mode          = Control.FOCUS_ALL
+
+	if is_equipped:
+		btn.text = "✓  EQUIPAGGIATO"
+		btn.add_theme_color_override("font_color", Color.WHITE)
+		btn.add_theme_stylebox_override("normal",
+			_mk_style(Color(0.10, 0.40, 0.10, 0.85), Color.WHITE, 8, 2))
+		btn.disabled = true
+	elif affordable:
+		btn.text = "  ψ %d  " % cost
+		btn.add_theme_color_override("font_color", C_GOLD)
+		btn.add_theme_stylebox_override("normal",
+			_mk_style(Color(0.14, 0.11, 0.01, 0.92), C_GOLD, 8, 1))
+		btn.add_theme_stylebox_override("hover",
+			_mk_style(Color(0.22, 0.18, 0.02, 0.95), Color.WHITE, 8, 2))
+		var cap_id  := pid
+		var cap_key := slot_key
+		var cap_cost := cost
+		btn.pressed.connect(func(): _buy_power(cap_id, cap_key, cap_cost))
+	else:
+		btn.text    = "  ψ %d  " % cost
+		btn.disabled = true
+		btn.modulate = Color(0.5, 0.5, 0.5, 0.8)
+
+	vbox.add_child(btn)
+	return pc
+
+
+func _buy_power(power_id: String, slot_key: String, cost: int) -> void:
+	if MetaManager.total_souls < cost:
+		return
+	MetaManager.total_souls -= cost
+	MetaManager.save_progress()
+
+	var meta_key: String = "active_power_" + slot_key
+	GameManager.set_meta(meta_key, power_id)
+
+	# Forza il ricalcolo delle stats di tutti i giocatori (aggiorna CD massimi)
+	_recalc_all_players()
+	_refresh_souls()
+
+	# Ricostruisce la tab per mostrare il badge EQUIPAGGIATO
+	_rebuild_grid()
+	_grab_first_focus()
 
 
 # ══════════════════════════════════════════════
@@ -398,6 +665,7 @@ func _build_item_card(item: Dictionary) -> PanelContainer:
 			_mk_style(btn_hov, Color.WHITE, 8, 2))
 		btn.add_theme_stylebox_override("pressed",
 			_mk_style(btn_hov, Color.WHITE, 8, 1))
+		btn.focus_mode = Control.FOCUS_ALL
 		btn.pressed.connect(func(): _buy(captured))
 	else:
 		btn.text    = "  ψ %d  " % cost

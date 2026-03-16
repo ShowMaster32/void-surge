@@ -196,11 +196,17 @@ func _build_ui() -> void:
 
 	var retry_btn := _action_btn("▶  RIGIOCA", C_GREEN)
 	retry_btn.pressed.connect(_on_retry)
+	retry_btn.focus_mode = Control.FOCUS_ALL
+	retry_btn.name = "RetryBtn"
 	footer.add_child(retry_btn)
 
 	var hub_btn := _action_btn("🏠  VAI AL HUB", C_ACC)
 	hub_btn.pressed.connect(_on_go_hub)
+	hub_btn.focus_mode = Control.FOCUS_ALL
 	footer.add_child(hub_btn)
+
+	var ctrl_hint2 := _lbl("🎮  [A] Conferma  [D-pad] Naviga  [B] Rigioca", 10, C_DIM)
+	footer.add_child(ctrl_hint2)
 
 
 # ══════════════════════════════════════════════
@@ -235,6 +241,10 @@ func _show(stats: Dictionary) -> void:
 	_refresh_souls()
 
 	_canvas.visible = true
+
+	# Controller: focus al primo bottone acquistabile
+	await get_tree().process_frame
+	_grab_first_res_focus()
 
 	# Animazione entrata: scale da 0.9 → 1.0
 	var panel: Control = null
@@ -411,6 +421,7 @@ func _build_upgrade_card(item: Dictionary, parent: Node) -> Dictionary:
 			_mk_style(Color(0.12, 0.10, 0.01, 0.92), C_GOLD, 8, 1))
 		btn.add_theme_stylebox_override("hover",
 			_mk_style(Color(0.22, 0.18, 0.02, 0.96), Color.WHITE, 8, 2))
+		btn.focus_mode = Control.FOCUS_ALL
 		var cap_item := item
 		btn.pressed.connect(func(): _buy_upgrade(cap_item))
 	else:
@@ -426,6 +437,18 @@ func _build_upgrade_card(item: Dictionary, parent: Node) -> Dictionary:
 # ══════════════════════════════════════════════
 #  Acquisto
 # ══════════════════════════════════════════════
+
+func _grab_first_res_focus() -> void:
+	## Dà il focus al primo bottone acquistabile; fallback su RetryBtn.
+	for cd: Dictionary in _cards:
+		var btn: Button = cd.get("btn", null) as Button
+		if btn and not btn.disabled and btn.focus_mode != Control.FOCUS_NONE:
+			btn.grab_focus()
+			return
+	var rb := _canvas.find_child("RetryBtn", true, false)
+	if rb is Button:
+		(rb as Button).grab_focus()
+
 
 func _buy_upgrade(item: Dictionary) -> void:
 	var upg_id: String = item["id"]

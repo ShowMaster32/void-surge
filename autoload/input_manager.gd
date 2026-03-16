@@ -17,6 +17,35 @@ func _ready() -> void:
 	assign_device_to_player(KEYBOARD_MOUSE_DEVICE, 0)
 	for device_id in Input.get_connected_joypads():
 		_on_joy_connection_changed(device_id, true)
+	_setup_controller_ui_actions()
+
+
+## Registra le action UI per controller se non già presenti nel progetto.
+## ui_accept / ui_cancel / ui_up / ui_down / ui_left / ui_right sono già
+## mappati da Godot (JOY_BUTTON_A, B, D-pad). Qui aggiungiamo anche lo
+## stick sinistro come alternativa al D-pad per navigare i menu.
+func _setup_controller_ui_actions() -> void:
+	var stick_actions := {
+		"ui_left":  Vector2(-1.0,  0.0),
+		"ui_right": Vector2( 1.0,  0.0),
+		"ui_up":    Vector2( 0.0, -1.0),
+		"ui_down":  Vector2( 0.0,  1.0),
+	}
+	for action in stick_actions:
+		if not InputMap.has_action(action):
+			InputMap.add_action(action)
+		# Aggiunge JoypadMotion (stick sinistro) solo se non già presente
+		var already_has_motion := false
+		for ev in InputMap.action_get_events(action):
+			if ev is InputEventJoypadMotion:
+				already_has_motion = true
+				break
+		if not already_has_motion:
+			var dir: Vector2 = stick_actions[action]
+			var jm := InputEventJoypadMotion.new()
+			jm.axis        = JOY_AXIS_LEFT_X if absf(dir.x) > 0 else JOY_AXIS_LEFT_Y
+			jm.axis_value  = dir.x if absf(dir.x) > 0 else dir.y
+			InputMap.action_add_event(action, jm)
 
 
 func _on_joy_connection_changed(device_id: int, connected: bool) -> void:

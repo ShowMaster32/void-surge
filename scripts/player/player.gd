@@ -89,6 +89,7 @@ var _cd_max_e: float    = 0.0
 var _cd_e: float        = 0.0
 # Pierce bonus da arma attiva
 var _weapon_pierce_bonus: int = 0
+var _last_aim_dir: Vector2 = Vector2.ZERO   # ultima dir valida stick destro (controller)
 
 
 func _ready() -> void:
@@ -279,22 +280,34 @@ func _physics_process(delta: float) -> void:
 ##   canvas transform e viewport senza calcoli manuali.
 ## • player_id > 0 (controller) : legge JOY_AXIS_RIGHT_X/Y dal device associato.
 func _get_aim_dir() -> Vector2:
-	if player_id == 0:
-		# Mouse: calcolo diretto senza passare per InputManager
+	# Controlla il DEVICE reale per questo player (non player_id).
+	# Con controller connesso come P1, device_id ≠ KEYBOARD_MOUSE_DEVICE
+	# anche se player_id == 0.
+	var device_id: int = InputManager.player_to_device.get(
+		player_id, InputManager.KEYBOARD_MOUSE_DEVICE)
+
+	if device_id == InputManager.KEYBOARD_MOUSE_DEVICE:
+		# ── Mouse ───────────────────────────────────────────────────────────
+		# get_global_mouse_position() in Godot 4 gestisce automaticamente
+		# camera, viewport e canvas transform.
 		var mouse_world := get_global_mouse_position()
 		var dir := mouse_world - global_position
 		if dir.length_squared() > 4.0:   # soglia 2px per evitare jitter
 			return dir.normalized()
 		return Vector2.RIGHT
 	else:
-		# Controller: stick destro tramite device associato a questo player_id
-		var device_id: int = InputManager.player_to_device.get(player_id, 0)
-		var x := Input.get_joy_axis(device_id, JOY_AXIS_RIGHT_X)
-		var y := Input.get_joy_axis(device_id, JOY_AXIS_RIGHT_Y)
-		var vec := Vector2(x, y)
-		if vec.length() > 0.28:
-			return vec.normalized()
-		# Fallback: direzione di movimento se stick non usato
+		# ── Controller: stick destro ─────────────────────────────────────────
+		var rx := Input.get_joy_axis(device_id, JOY_AXIS_RIGHT_X)
+		var ry := Input.get_joy_axis(device_id, JOY_AXIS_RIGHT_Y)
+		var stick := Vector2(rx, ry)
+		if stick.length() > 0.20:   # deadzone stick destro
+			_last_aim_dir = stick.normalized()
+			return _last_aim_dir
+		# Stick destro inattivo: mantieni ultima direzione valida
+		# (evita che la nave torni di scatto a Vector2.RIGHT)
+		if _last_aim_dir != Vector2.ZERO:
+			return _last_aim_dir
+		# Fallback finale: direzione di movimento
 		if velocity.length_squared() > 10.0:
 			return velocity.normalized()
 		return Vector2.RIGHT

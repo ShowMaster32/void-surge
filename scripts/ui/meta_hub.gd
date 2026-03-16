@@ -167,6 +167,9 @@ func _ready() -> void:
 		InputManager.controller_disconnected.connect(func(_id): _refresh_ctrl_label())
 	_refresh_ctrl_label()
 
+	# Controller: rende tutti i bottoni del MetaHub navigabili con D-pad/stick
+	_set_all_buttons_focusable(_canvas)
+
 
 # ══════════════════════════════════════════════
 #  Build UI
@@ -909,6 +912,15 @@ func _unlock_hint(char_id: String) -> String:
 		"earn_1000_souls":        return "Guadagna 1000 Souls"
 		"complete_run_all_chars": return "Completa run con tutti"
 		_:                        return "Locked"
+
+
+## Imposta focus_mode = FOCUS_ALL su ogni Button nel sub-tree di root.
+## Permette navigazione con D-pad / stick sinistro del controller.
+func _set_all_buttons_focusable(root: Node) -> void:
+	if root is Button:
+		(root as Button).focus_mode = Control.FOCUS_ALL
+	for child in root.get_children():
+		_set_all_buttons_focusable(child)
 
 
 func _mk_style(bg: Color, border: Color, radius: int, border_w: int) -> StyleBoxFlat:

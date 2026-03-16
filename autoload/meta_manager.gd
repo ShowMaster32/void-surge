@@ -279,6 +279,14 @@ func gain_xp(char_id: String, amount: int) -> void:
 		level_up.emit(char_id, character_levels[char_id])
 
 
+## Aggiunge souls senza richiedere un char_id — usato dai nemici durante la run.
+## Non incrementa XP del personaggio (solo la valuta spendibile).
+func gain_souls(amount: int) -> void:
+	total_souls      += amount
+	total_souls_ever += amount
+	xp_gained.emit(amount, 0)
+
+
 ## Moltiplicatore logaritmico per le stats in base al livello.
 ## Lv1=1.0, Lv10≈1.23, Lv50≈1.59
 func get_level_multiplier(char_id: String) -> float:

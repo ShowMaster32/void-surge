@@ -216,6 +216,11 @@ func _die() -> void:
 	if gm != null and gm.has_method("add_kill"):
 		gm.add_kill()
 
+	# Assegna souls al giocatore in base al valore del nemico
+	var mm: Node = get_node_or_null("/root/MetaManager")
+	if mm != null and mm.has_method("gain_souls"):
+		mm.gain_souls(soul_value)
+
 	# VFX death burst
 	var vfx_node: Node = get_node_or_null("/root/VFX")
 	if vfx_node != null and vfx_node.has_method("spawn_death_effect"):

@@ -34,6 +34,7 @@ var _wave_lbl:       Label
 var _wave_next_lbl:  Label   # "next: 18s"
 var _timer_lbl:      Label
 var _kills_lbl:      Label
+var _souls_lbl:      Label
 var _zone_lbl:       Label   # (non mostrato, kept per compatibilità)
 var _synergy_row:    Control
 var _spawner:        Node = null
@@ -73,6 +74,9 @@ func _ready() -> void:
 	_build_ui()
 	_hook_signals()
 	_find_players()
+	# Inizializza souls con il valore reale salvato (non sempre 0)
+	if _souls_lbl:
+		_souls_lbl.text = "ψ  %d" % MetaManager.total_souls
 
 
 # ══════════════════════════════════════════════
@@ -129,6 +133,10 @@ func _build_ui() -> void:
 	bar_hbox.add_child(_mk_vsep())
 	_kills_lbl = _lbl("☠  0", 20, Color(1.00, 0.52, 0.20), 1, Color(0, 0, 0, 0.7))
 	bar_hbox.add_child(_kills_lbl)
+
+	bar_hbox.add_child(_mk_vsep())
+	_souls_lbl = _lbl("ψ  0", 20, Color(1.00, 0.82, 0.10), 1, Color(0, 0, 0, 0.7))
+	bar_hbox.add_child(_souls_lbl)
 
 	# ── banner synergy co-op ──────────────────────────────────────────────────
 	_synergy_row = Control.new()
@@ -377,6 +385,10 @@ func _hook_signals() -> void:
 	if GameManager.has_signal("coop_synergy_active"):
 		GameManager.coop_synergy_active.connect(_on_synergy)
 
+	# Souls: aggiorna label ogni volta che vengono guadagnate
+	if MetaManager.has_signal("xp_gained"):
+		MetaManager.xp_gained.connect(_on_souls_gained)
+
 
 func _on_wave(arg = null) -> void:
 	_wave = arg if arg is int else _read_gm_wave()
@@ -389,6 +401,11 @@ func _on_wave(arg = null) -> void:
 func _on_kill(_a = null) -> void:
 	_kills += 1
 	_kills_lbl.text = "☠  %d" % _kills
+
+
+func _on_souls_gained(_amount: int, _total: int) -> void:
+	if _souls_lbl:
+		_souls_lbl.text = "ψ  %d" % MetaManager.total_souls
 
 
 func _on_synergy(active: bool) -> void:
