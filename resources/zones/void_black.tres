@@ -6,7 +6,7 @@
 script = ExtResource("1_zone")
 zone_id = "void_black"
 zone_name = "Void Black"
-description = "The endless darkness of the void. A place of silence and shadow."
+description = "Sector I — The abyss stares back. Something ancient stirs in the dark."
 background_color_top = Color(0.01, 0.005, 0.03, 1)
 background_color_bottom = Color(0.03, 0.01, 0.06, 1)
 ambient_color = Color(0.05, 0.05, 0.1, 1)

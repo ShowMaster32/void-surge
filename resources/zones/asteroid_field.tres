@@ -6,7 +6,7 @@
 script = ExtResource("1_zone")
 zone_id = "asteroid_field"
 zone_name = "Asteroid Field"
-description = "Dense debris from ancient cosmic collisions. Watch your step."
+description = "Sector III — The ruins of a dead world. Its creatures never stopped fighting."
 background_color_top = Color(0.08, 0.07, 0.06, 1)
 background_color_bottom = Color(0.04, 0.035, 0.03, 1)
 ambient_color = Color(0.15, 0.12, 0.1, 1)

@@ -6,7 +6,7 @@
 script = ExtResource("1_zone")
 zone_id = "dimension_rift"
 zone_name = "Dimension Rift"
-description = "Reality tears apart. Glitches warp space and time. Only the strongest survive."
+description = "Sector V — The boundary between worlds has collapsed. Beyond this lies the Sovereign."
 background_color_top = Color(0.1, 0.02, 0.08, 1)
 background_color_bottom = Color(0.02, 0.08, 0.1, 1)
 ambient_color = Color(0.2, 0.1, 0.25, 1)

@@ -5,6 +5,7 @@ extends Node
 signal game_started
 signal game_paused(is_paused: bool)
 signal game_over(stats: Dictionary)
+signal game_won(stats: Dictionary)
 signal player_spawned(player: Node2D)
 signal coop_synergy_active(active: bool)  ## NUOVO: segnala synergy co-op
 
@@ -118,6 +119,25 @@ func end_game() -> void:
 		meta.on_run_complete(false, current_wave, total_kills)
 
 	game_over.emit(stats)
+
+
+func win_game() -> void:
+	## Chiamato quando il Void Sovereign viene sconfitto.
+	current_state = GameState.GAME_OVER
+	get_tree().paused = true
+
+	var stats := {
+		"run_time": run_time,
+		"kills": total_kills,
+		"damage_dealt": total_damage_dealt,
+		"wave_reached": current_wave
+	}
+
+	if get_node_or_null("/root/MetaManager") != null:
+		var meta := get_node("/root/MetaManager")
+		meta.on_run_complete(true, current_wave, total_kills)
+
+	game_won.emit(stats)
 
 
 func register_player(player: Node2D) -> void:

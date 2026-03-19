@@ -50,6 +50,8 @@ const DRONE_CONFIGS := {
 # ══════════════════════════════════════════════════════════════════════════════
 
 func _ready() -> void:
+	_ensure_buses()
+
 	# Crea pool SFX
 	for _i in MAX_POLYPHONY:
 		var p := AudioStreamPlayer.new()
@@ -77,6 +79,16 @@ func _ready() -> void:
 	# Aggancia segnali esistenti
 	await get_tree().process_frame
 	_hook_signals()
+
+
+func _ensure_buses() -> void:
+	## Crea i bus "SFX" e "Ambient" se non esistono già nel progetto.
+	for bus_name in ["SFX", "Ambient"]:
+		if AudioServer.get_bus_index(bus_name) == -1:
+			AudioServer.add_bus()
+			var idx: int = AudioServer.bus_count - 1
+			AudioServer.set_bus_name(idx, bus_name)
+			AudioServer.set_bus_send(idx, "Master")
 
 
 func _hook_signals() -> void:

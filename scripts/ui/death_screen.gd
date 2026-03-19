@@ -21,28 +21,45 @@ var is_visible: bool = false
 func _ready() -> void:
 	visible = false
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	
-	# Connetti segnali
+
 	GameManager.game_over.connect(_on_game_over)
+	GameManager.game_won.connect(_on_game_won)
 	retry_button.pressed.connect(_on_retry_pressed)
 	menu_button.pressed.connect(_on_menu_pressed)
 
 
 func _on_game_over(stats: Dictionary) -> void:
-	show_death_screen(stats)
+	show_death_screen(stats, false)
 
 
-func show_death_screen(stats: Dictionary) -> void:
+func _on_game_won(stats: Dictionary) -> void:
+	show_death_screen(stats, true)
+
+
+func show_death_screen(stats: Dictionary, victory: bool = false) -> void:
 	is_visible = true
 	visible = true
-	
-	# Popola stats
-	time_label.text = "TIME: %s" % _format_time(stats.get("run_time", 0.0))
-	kills_label.text = "KILLS: %d" % stats.get("kills", 0)
-	wave_label.text = "WAVE REACHED: %d" % stats.get("wave_reached", 1)
-	damage_label.text = "DAMAGE DEALT: %d" % int(stats.get("damage_dealt", 0.0))
-	
-	# Focus sul pulsante retry
+
+	if victory:
+		title_label.text = "VOID SOVEREIGN DEFEATED"
+		title_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.0))
+		# Bordo dorato sul pannello
+		var style := StyleBoxFlat.new()
+		style.bg_color = Color(0.04, 0.02, 0.01, 0.96)
+		style.border_color = Color(1.0, 0.75, 0.0)
+		style.set_border_width_all(3)
+		style.set_corner_radius_all(10)
+		if panel.has_method("add_theme_stylebox_override"):
+			panel.add_theme_stylebox_override("panel", style)
+	else:
+		title_label.text = "YOU DIED"
+		title_label.add_theme_color_override("font_color", Color(1.0, 0.2, 0.2))
+
+	time_label.text   = "TIME: %s"          % _format_time(stats.get("run_time", 0.0))
+	kills_label.text  = "KILLS: %d"         % stats.get("kills", 0)
+	wave_label.text   = "WAVE REACHED: %d"  % stats.get("wave_reached", 1)
+	damage_label.text = "DAMAGE DEALT: %d"  % int(stats.get("damage_dealt", 0.0))
+
 	retry_button.grab_focus()
 
 

@@ -34,6 +34,14 @@ var _current_boss: Node = null    # riferimento al boss corrente
 const BOSS_WAVE_INTERVAL_STANDARD  := 5   # ogni 5 wave (Standard)
 const BOSS_WAVE_INTERVAL_HARDCORE  := 3   # ogni 3 wave (Hardcore)
 
+# ── Progressione finale ────────────────────────────────────────────────────────
+## Dopo N cambi zona consecutivi scatta il boss finale "Void Sovereign".
+## 5 zone × 2 cicli completi = 10 cambi zona.
+const ZONE_CHANGES_TO_FINAL := 10
+var _zone_change_count: int = 0
+var _final_boss_pending: bool = false  # il prossimo boss sarà il Void Sovereign
+var _final_boss_active:  bool = false  # il VS è vivo in questo momento
+
 
 func _ready() -> void:
 	add_to_group("enemy_spawner")
@@ -46,6 +54,10 @@ func _ready() -> void:
 	var shop_node := get_tree().get_first_node_in_group("shop")
 	if shop_node and shop_node.has_signal("shop_closed"):
 		shop_node.shop_closed.connect(_on_shop_closed)
+
+	# Traccia i cambi zona per il boss finale
+	if zone_generator and zone_generator.has_signal("zone_changed"):
+		zone_generator.zone_changed.connect(_on_zone_changed_for_final)
 
 
 func _process(delta: float) -> void:
@@ -121,6 +133,13 @@ func _spawn_boss() -> void:
 		else BOSS_WAVE_INTERVAL_STANDARD
 	var boss_id := (int(current_wave / _interval) - 1) % 4
 
+	# Se il Void Sovereign è in attesa, usalo come boss_id 3 (il più potente) con boost extra
+	var is_final: bool = _final_boss_pending
+	if is_final:
+		_final_boss_pending = false
+		_final_boss_active  = true
+		boss_id = 3   # usa il frame del boss più potente
+
 	# Posizione di spawn (fuori dallo schermo visibile)
 	var spawn_pos := _get_spawn_position()
 	if spawn_pos == Vector2.INF:
@@ -142,9 +161,11 @@ func _spawn_boss() -> void:
 
 	# Scala HP e danno DOPO _ready() (che ha già impostato i valori base da BOSS_DATA)
 	var wave_mult := 1.0 + (current_wave - 1) * 0.12
+	if is_final:
+		wave_mult *= 5.0   # Void Sovereign: 5× più cattivo del normale
 	if "max_health" in boss and "health" in boss:
 		boss.max_health *= wave_mult
-		boss.health      = boss.max_health   # riallinea health dopo il cambio
+		boss.health      = boss.max_health
 	if "damage" in boss:
 		boss.damage *= wave_mult
 
@@ -156,8 +177,13 @@ func _spawn_boss() -> void:
 	# Notifica milestone
 	var notifier := get_tree().get_first_node_in_group("milestone_notifier")
 	if notifier and notifier.has_method("show_notification"):
-		var boss_name: String = boss.get_boss_name() if boss.has_method("get_boss_name") else "BOSS"
-		notifier.show_notification("⚔  " + boss_name + "  APPARE  ⚔", Color(1.0, 0.25, 0.25))
+		var boss_name: String
+		if is_final:
+			boss_name = "VOID SOVEREIGN"
+		else:
+			boss_name = boss.get_boss_name() if boss.has_method("get_boss_name") else "BOSS"
+		var boss_color := Color(1.0, 0.05, 0.05) if is_final else Color(1.0, 0.25, 0.25)
+		notifier.show_notification("⚔  " + boss_name + "  APPARE  ⚔", boss_color)
 
 
 func _spawn_boss_hud(boss: Node) -> void:
@@ -177,6 +203,12 @@ func _on_boss_died(_boss: Node = null) -> void:
 
 	boss_killed.emit()
 
+	# Void Sovereign sconfitto → vittoria!
+	if _final_boss_active:
+		_final_boss_active = false
+		GameManager.win_game()
+		return
+
 	# Dai souls bonus al giocatore
 	var mm := get_node_or_null("/root/MetaManager")
 	if mm and mm.has_method("gain_souls"):
@@ -188,6 +220,16 @@ func _on_boss_died(_boss: Node = null) -> void:
 
 	# Avanza alla wave successiva (apre lo shop)
 	_advance_wave()
+
+
+func _on_zone_changed_for_final(_zone_data: ZoneData) -> void:
+	_zone_change_count += 1
+	if _zone_change_count >= ZONE_CHANGES_TO_FINAL and not _final_boss_pending and not _final_boss_active:
+		_final_boss_pending = true
+		# Avvisa il giocatore
+		var notifier := get_tree().get_first_node_in_group("milestone_notifier")
+		if notifier and notifier.has_method("show_notification"):
+			notifier.show_notification("☠  VOID SOVEREIGN AWAKENS  ☠", Color(1.0, 0.05, 0.05))
 
 
 # ══════════════════════════════════════════════

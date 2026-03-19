@@ -6,7 +6,7 @@
 script = ExtResource("1_zone")
 zone_id = "plasma_storm"
 zone_name = "Plasma Storm"
-description = "Violent energy discharges crackle through space. High risk, high reward."
+description = "Sector IV — The storm is alive. It has been feeding for centuries."
 background_color_top = Color(0.02, 0.08, 0.15, 1)
 background_color_bottom = Color(0.01, 0.04, 0.1, 1)
 ambient_color = Color(0.1, 0.3, 0.5, 1)
