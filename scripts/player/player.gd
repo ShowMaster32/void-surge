@@ -548,6 +548,8 @@ func _shoot() -> void:
 	if not projectile_scene:
 		return
 
+	AudioManager.sfx("shoot", 0.08)
+
 	var aim_dir := _get_aim_dir()
 	var spawn_dist := 24.0
 	if muzzle:
@@ -654,6 +656,8 @@ func take_damage(amount: float) -> void:
 	if is_dead or _invincible:
 		return
 
+	AudioManager.sfx("damage_taken", 0.10)
+
 	# Riduzione danno: talento sentinel + Void Shroud attivo
 	var reduced := amount * (1.0 - _meta_damage_reduction) * (1.0 - _shield_dr)
 	current_health = maxf(current_health - reduced, 0.0)
@@ -679,6 +683,7 @@ func heal(amount: float) -> void:
 		return
 	current_health = minf(current_health + amount, max_health)
 	health_changed.emit(current_health, max_health)
+	AudioManager.sfx("heal")
 
 
 func _die() -> void:
@@ -823,6 +828,7 @@ func _try_activate_e() -> void:
 
 
 func _execute_power(power_id: String) -> void:
+	AudioManager.sfx("power_use", 0.06)
 	match power_id:
 		# Difensivi
 		"shield_burst":     _power_shield_burst()

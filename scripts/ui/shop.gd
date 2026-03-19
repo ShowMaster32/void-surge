@@ -1564,6 +1564,7 @@ func _buy(item: Dictionary) -> void:
 		return
 
 	MetaManager.total_souls -= item["cost"]
+	AudioManager.sfx("buy_item")
 	_apply_effect(item["fx"], item.get("val", 0.0))
 	MetaManager.save_progress()
 

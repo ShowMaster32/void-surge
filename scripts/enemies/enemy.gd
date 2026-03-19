@@ -182,6 +182,7 @@ func take_damage(amount: float, crit: bool = false, _source_player_id: int = -1)
 		return
 
 	health -= amount
+	AudioManager.sfx("hit_enemy", 0.15)
 	_trigger_hit_flash()
 
 	# ── floating damage number ────────────────────────────────────────────────
@@ -210,6 +211,7 @@ func _die() -> void:
 	if is_dead:
 		return
 	is_dead = true
+	AudioManager.sfx("explosion", 0.12)
 
 	# Incrementa kill counter nel GameManager
 	var gm: Node = get_node_or_null("/root/GameManager")

@@ -28,6 +28,7 @@ InputManager="*res://autoload/input_manager.gd"
 VFX="*res://scripts/systems/vfx_manager.gd"
 EquipmentManager="*res://autoload/equipment_manager.gd"
 MetaManager="*res://autoload/meta_manager.gd"
+AudioManager="*res://autoload/audio_manager.gd"
 
 [display]
 

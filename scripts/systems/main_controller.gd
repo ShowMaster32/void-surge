@@ -55,8 +55,8 @@ func begin_game() -> void:
 
 func _setup_camera_limits() -> void:
 	## Imposta i limiti della Camera2D entro i confini del mondo
-	var half_w := int(zone_generator.zone_size.x / 2) if zone_generator else 2400
-	var half_h := int(zone_generator.zone_size.y / 2) if zone_generator else 2400
+	var half_w: int = int(zone_generator.zone_size.x / 2) if zone_generator else 2400
+	var half_h: int = int(zone_generator.zone_size.y / 2) if zone_generator else 2400
 
 	# Esponi i bounds globali così player.gd può fare clamping corretto
 	GameManager.set_meta("world_half_w", half_w)
