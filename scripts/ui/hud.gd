@@ -39,6 +39,7 @@ var _zone_lbl:       Label   # (non mostrato, kept per compatibilità)
 var _synergy_row:    Control
 var _spawner:        Node = null
 var _player_panels:  Array = []
+var _damage_overlay: ColorRect = null   # flash rosso al danno
 var _hp_fills:       Array = []
 var _hp_fill_styles: Array = []
 var _hp_labels:      Array = []
@@ -88,6 +89,14 @@ func _build_ui() -> void:
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_canvas.add_child(root)
+
+	# ── Overlay danno (flash rosso a schermo pieno) ───────────────────────────
+	_damage_overlay = ColorRect.new()
+	_damage_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_damage_overlay.color       = Color(0.85, 0.05, 0.05, 0.0)
+	_damage_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_damage_overlay.z_index     = 100
+	root.add_child(_damage_overlay)
 
 	# ── barra singola in cima ─────────────────────────────────────────────────
 	var top_bar := Panel.new()
@@ -385,6 +394,10 @@ func _hook_signals() -> void:
 	if GameManager.has_signal("coop_synergy_active"):
 		GameManager.coop_synergy_active.connect(_on_synergy)
 
+	# Flash rosso al danno
+	if GameManager.has_signal("player_damaged"):
+		GameManager.player_damaged.connect(_on_player_damaged)
+
 	# Souls: aggiorna label ogni volta che vengono guadagnate
 	if MetaManager.has_signal("xp_gained"):
 		MetaManager.xp_gained.connect(_on_souls_gained)
@@ -411,6 +424,15 @@ func _on_souls_gained(_amount: int, _total: int) -> void:
 func _on_synergy(active: bool) -> void:
 	create_tween().tween_property(_synergy_row, "modulate:a",
 		1.0 if active else 0.0, 0.4)
+
+
+func _on_player_damaged() -> void:
+	if _damage_overlay == null:
+		return
+	# Flash: alpha 0.48 → 0.0 in 0.35s (vignette rossa pulsante)
+	var tw := create_tween()
+	tw.tween_property(_damage_overlay, "color:a", 0.48, 0.04)
+	tw.tween_property(_damage_overlay, "color:a", 0.0,  0.32)
 
 
 # ══════════════════════════════════════════════

@@ -175,6 +175,12 @@ func _hit_enemy(enemy: Node2D) -> void:
 		var hit_color := Color(1, 1, 0.5) if is_crit else proj_col
 		VFX.spawn_hit_effect(global_position, hit_color)
 
+	# Hit-stop: freeze frame su crit (0.05s) o hit su boss (0.03s)
+	if is_crit:
+		GameManager.hit_stop(0.05, 0.0)
+	elif enemy is Boss:
+		GameManager.hit_stop(0.03, 0.0)
+
 	# Infliggi danno
 	if enemy.has_method("take_damage"):
 		enemy.take_damage(final_damage)

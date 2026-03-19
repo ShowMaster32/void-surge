@@ -18,6 +18,7 @@ const C_GREEN := Color(0.22, 1.00, 0.50)
 var _title_lbl:     Label  = null
 var _start_btn:     Button = null   # bottone Standard
 var _hardcore_btn:  Button = null   # bottone Hardcore
+var _resume_btn:    Button = null   # bottone Continua Run (solo se c'è un salvataggio)
 var _started:       bool   = false  ## guard anti-doppio avvio
 var _selected_mode: String = "standard"
 
@@ -64,6 +65,21 @@ func _on_start_pressed() -> void:
 		return   # evita doppio avvio (button.pressed + _input entrambi possono scattare)
 	_started = true
 	GameManager.game_mode = _selected_mode
+	visible = false
+	var main := get_node_or_null("/root/Main")
+	if main and main.has_method("begin_game"):
+		main.begin_game()
+
+
+func _on_resume_pressed() -> void:
+	if _started:
+		return
+	_started = true
+	# Segnala al RunSaver di applicare lo stato salvato dopo il caricamento scena
+	if get_node_or_null("/root/RunSaver"):
+		RunSaver.set_meta("resume_requested", true)
+	var save_data: Dictionary = RunSaver.load_run()
+	GameManager.game_mode = save_data.get("game_mode", "standard") as String
 	visible = false
 	var main := get_node_or_null("/root/Main")
 	if main and main.has_method("begin_game"):
@@ -320,6 +336,32 @@ func _build_start(parent: VBoxContainer) -> void:
 	_hardcore_btn.focus_mode = Control.FOCUS_ALL
 	_hardcore_btn.pressed.connect(_on_hardcore_pressed)
 	mode_hbox.add_child(_hardcore_btn)
+
+	# ── Bottone CONTINUA RUN (solo se c'è un salvataggio mid-run) ────────────
+	var has_resume: bool = RunSaver.has_save() if get_node_or_null("/root/RunSaver") else false
+	if has_resume:
+		var save_data: Dictionary = RunSaver.load_run()
+		var save_wave: int        = save_data.get("wave", 1) as int
+		var save_time: float      = save_data.get("run_time", 0.0) as float
+		var save_min: int         = int(save_time) / 60
+		var save_sec: int         = int(save_time) % 60
+
+		_resume_btn = Button.new()
+		_resume_btn.text = "↺  CONTINUA  (Wave %d — %02d:%02d)" % [save_wave, save_min, save_sec]
+		_resume_btn.custom_minimum_size = Vector2(576, 52)
+		_resume_btn.add_theme_font_size_override("font_size", 18)
+		var rc := Color(0.18, 1.00, 0.50)
+		_resume_btn.add_theme_color_override("font_color",         Color(0.02, 0.08, 0.04))
+		_resume_btn.add_theme_color_override("font_hover_color",   Color.BLACK)
+		_resume_btn.add_theme_color_override("font_pressed_color", Color.BLACK)
+		var rn := _mk_style(rc,                Color(0.25, 1.00, 0.60), 12, 2)
+		var rh := _mk_style(rc.lightened(0.2), Color.WHITE,             12, 3)
+		_resume_btn.add_theme_stylebox_override("normal",  rn)
+		_resume_btn.add_theme_stylebox_override("hover",   rh)
+		_resume_btn.add_theme_stylebox_override("pressed", rh)
+		_resume_btn.focus_mode = Control.FOCUS_ALL
+		_resume_btn.pressed.connect(_on_resume_pressed)
+		vb.add_child(_resume_btn)
 
 	# Focus sul bottone standard
 	_start_btn.grab_focus()

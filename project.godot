@@ -31,6 +31,7 @@ MetaManager="*res://autoload/meta_manager.gd"
 AudioManager="*res://autoload/audio_manager.gd"
 CameraShake="*res://autoload/camera_shake.gd"
 ScoreManager="*res://autoload/score_manager.gd"
+RunSaver="*res://autoload/run_saver.gd"
 
 [display]
 

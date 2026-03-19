@@ -45,25 +45,79 @@ const SKINS: Dictionary = {
 }
 
 const POWERS: Array = [
+	# ── DIFENSIVI (Slot Q) ──────────────────────────────────────────────────
 	{
 		"id": "shield_burst", "name": "Shield Burst", "icon": "🛡",
+		"slot": "defensive",
 		"description": "Invincibile 1.5s. Perfetto per sopravvivere nei momenti critici.",
-		"cost": 200, "cooldown": "8s",
-	},
-	{
-		"id": "plasma_bomb", "name": "Plasma Bomb", "icon": "💥",
-		"description": "Esplosione AOE 5× danno in 250px. Letale tra i gruppi.",
-		"cost": 300, "cooldown": "12s",
+		"cost": 0, "cooldown": "8s",
 	},
 	{
 		"id": "void_dash", "name": "Void Dash", "icon": "⚡",
+		"slot": "defensive",
 		"description": "Scatto rapido verso la mira. Invincibile durante il dash.",
 		"cost": 150, "cooldown": "6s",
 	},
 	{
+		"id": "void_shroud", "name": "Void Shroud", "icon": "🌑",
+		"slot": "defensive",
+		"description": "-50% danno ricevuto per 6 secondi. Diventa semi-trasparente.",
+		"cost": 250, "cooldown": "12s",
+	},
+	{
+		"id": "phase_shift", "name": "Phase Shift", "icon": "🔮",
+		"slot": "defensive",
+		"description": "Teleportati istantaneamente nella direzione della mira (800px).",
+		"cost": 220, "cooldown": "8s",
+	},
+	{
+		"id": "healing_nova", "name": "Healing Nova", "icon": "💚",
+		"slot": "defensive",
+		"description": "Cura tutti i player di 30 HP in un'area. Co-op friendly.",
+		"cost": 280, "cooldown": "14s",
+	},
+	{
+		"id": "temporal_barrier", "name": "Temporal Barrier", "icon": "⏸",
+		"slot": "defensive",
+		"description": "Crea uno scudo immobile che assorbe 150 danno per 4 secondi.",
+		"cost": 350, "cooldown": "18s",
+	},
+	# ── OFFENSIVI (Slot E) ──────────────────────────────────────────────────
+	{
+		"id": "plasma_bomb", "name": "Plasma Bomb", "icon": "💥",
+		"slot": "offensive",
+		"description": "Esplosione AOE 5× danno in 250px. Letale tra i gruppi.",
+		"cost": 0, "cooldown": "12s",
+	},
+	{
 		"id": "time_surge", "name": "Time Surge", "icon": "⏳",
+		"slot": "offensive",
 		"description": "Rallenta tutti i nemici al 25% per 4 secondi.",
-		"cost": 400, "cooldown": "18s",
+		"cost": 300, "cooldown": "18s",
+	},
+	{
+		"id": "death_blossom", "name": "Death Blossom", "icon": "🌸",
+		"slot": "offensive",
+		"description": "Lancia 12 proiettili in cerchio. Copertura totale a 360°.",
+		"cost": 280, "cooldown": "14s",
+	},
+	{
+		"id": "singularity", "name": "Singularity", "icon": "🕳",
+		"slot": "offensive",
+		"description": "Black hole per 3s: attira e danneggia tutti i nemici vicini.",
+		"cost": 400, "cooldown": "22s",
+	},
+	{
+		"id": "void_storm", "name": "Void Storm", "icon": "🌪",
+		"slot": "offensive",
+		"description": "Scatena 20 proiettili casuali che rimbalzano per 3 secondi.",
+		"cost": 320, "cooldown": "18s",
+	},
+	{
+		"id": "chain_nova", "name": "Chain Nova", "icon": "⚡",
+		"slot": "offensive",
+		"description": "Fulmine che si concatena tra 6 nemici vicini. Danno cumulativo.",
+		"cost": 250, "cooldown": "12s",
 	},
 ]
 

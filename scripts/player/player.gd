@@ -660,6 +660,7 @@ func take_damage(amount: float) -> void:
 
 	AudioManager.sfx("damage_taken", 0.10)
 	CameraShake.light()
+	GameManager.player_damaged.emit()
 
 	# Riduzione danno: talento sentinel + Void Shroud attivo
 	var reduced := amount * (1.0 - _meta_damage_reduction) * (1.0 - _shield_dr)

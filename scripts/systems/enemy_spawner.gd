@@ -5,6 +5,7 @@ class_name EnemySpawner
 ## Durante la wave boss lo spawn normale è sospeso e il timer non avanza.
 
 signal wave_changed(wave: int)
+signal wave_pre_clear(wave: int, stats: Dictionary)   ## emesso PRIMA dello shop per la wave clear screen
 signal boss_wave_started(boss_id: int, boss: Node)
 signal boss_killed
 
@@ -42,10 +43,19 @@ var _zone_change_count: int = 0
 var _final_boss_pending: bool = false  # il prossimo boss sarà il Void Sovereign
 var _final_boss_active:  bool = false  # il VS è vivo in questo momento
 
+# ── Wave clear ────────────────────────────────────────────────────────────────
+var _wave_clearing:  bool  = false   # true mentre la wave clear screen è visibile
+var _kills_at_wave_start: int   = 0  # per calcolo kill diff
+var _dmg_at_wave_start:   float = 0.0
+var _wave_clear_screen: Node = null  # riferimento alla wave clear screen
+
 
 func _ready() -> void:
 	add_to_group("enemy_spawner")
 	spawn_rate = initial_spawn_rate
+	_kills_at_wave_start = GameManager.total_kills
+	_dmg_at_wave_start   = GameManager.total_damage_dealt
+
 	await get_tree().process_frame
 	zone_generator = get_tree().get_first_node_in_group("zone_generator") as ZoneGenerator
 
@@ -58,6 +68,16 @@ func _ready() -> void:
 	# Traccia i cambi zona per il boss finale
 	if zone_generator and zone_generator.has_signal("zone_changed"):
 		zone_generator.zone_changed.connect(_on_zone_changed_for_final)
+
+	# Trova (o crea) la wave clear screen
+	await get_tree().process_frame
+	_wave_clear_screen = get_tree().get_first_node_in_group("wave_clear_screen")
+	if _wave_clear_screen == null:
+		var wcs_script = load("res://scripts/ui/wave_clear_screen.gd")
+		if wcs_script:
+			_wave_clear_screen = wcs_script.new()
+			_wave_clear_screen.add_to_group("wave_clear_screen")
+			get_tree().current_scene.add_child(_wave_clear_screen)
 
 
 func _process(delta: float) -> void:
@@ -73,7 +93,7 @@ func _process(delta: float) -> void:
 
 	# ── Avanzamento timer wave ────────────────────────────────────────────────
 	wave_timer += delta
-	if wave_timer >= wave_duration:
+	if wave_timer >= wave_duration and not _wave_clearing:
 		_advance_wave()
 
 	# ── Spawn nemici normali ──────────────────────────────────────────────────
@@ -92,15 +112,46 @@ func _process(delta: float) -> void:
 
 
 func _advance_wave() -> void:
-	wave_timer   = 0.0
+	_wave_clearing = true
+	wave_timer     = 0.0
+
+	# Calcola statistiche wave
+	var kills_this_wave: int   = GameManager.total_kills - _kills_at_wave_start
+	var dmg_this_wave:   float = GameManager.total_damage_dealt - _dmg_at_wave_start
+	var wave_time:       float = wave_duration
+	var souls_earned:    int   = kills_this_wave * 2   # stima: 2 souls per kill
+
+	var stats := {
+		"kills_this_wave": kills_this_wave,
+		"wave_time":       wave_time,
+		"damage_dealt":    dmg_this_wave,
+		"souls_earned":    souls_earned,
+	}
+
+	# Reset contatori per la prossima wave
+	_kills_at_wave_start = GameManager.total_kills
+	_dmg_at_wave_start   = GameManager.total_damage_dealt
+
+	# Avanza wave
 	current_wave += 1
 	GameManager.current_wave = current_wave
-
 	spawn_rate = minf(initial_spawn_rate + (current_wave - 1) * spawn_rate_increase, max_spawn_rate)
 
 	if current_wave % 3 == 0 and zone_generator:
 		zone_generator.next_zone()
 
+	# Aggiorna intensità audio per la nuova wave
+	if AudioManager.has_method("update_wave_intensity"):
+		AudioManager.update_wave_intensity(current_wave)
+
+	# Mostra wave clear screen e aspetta che finisca
+	wave_pre_clear.emit(current_wave, stats)
+	if is_instance_valid(_wave_clear_screen) and _wave_clear_screen.has_signal("wave_clear_done"):
+		await _wave_clear_screen.wave_clear_done
+	else:
+		await get_tree().create_timer(2.8).timeout
+
+	_wave_clearing = false
 	wave_changed.emit(current_wave)   # apre lo shop
 
 

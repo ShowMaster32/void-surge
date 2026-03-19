@@ -52,6 +52,14 @@ func begin_game() -> void:
 	GameManager.start_game(_num_players)
 	_setup_camera_limits()
 
+	# Se il RunSaver ha un resume pendente, ripristina lo stato salvato
+	var run_saver := get_node_or_null("/root/RunSaver")
+	if run_saver and run_saver.has_meta("resume_requested"):
+		run_saver.remove_meta("resume_requested")
+		await get_tree().process_frame   # aspetta che tutti i nodi siano pronti
+		if run_saver.has_method("apply_saved_state"):
+			run_saver.apply_saved_state()
+
 
 func _setup_camera_limits() -> void:
 	## Imposta i limiti della Camera2D entro i confini del mondo

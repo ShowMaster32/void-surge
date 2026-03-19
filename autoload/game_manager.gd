@@ -7,7 +7,8 @@ signal game_paused(is_paused: bool)
 signal game_over(stats: Dictionary)
 signal game_won(stats: Dictionary)
 signal player_spawned(player: Node2D)
-signal coop_synergy_active(active: bool)  ## NUOVO: segnala synergy co-op
+signal player_damaged              ## emesso ogni volta che un player subisce danno
+signal coop_synergy_active(active: bool)
 
 enum GameState { MENU, PLAYING, PAUSED, GAME_OVER }
 
@@ -169,3 +170,20 @@ func get_formatted_time() -> String:
 ## NUOVO: restituisce il bonus danno co-op se attivo
 func get_coop_damage_bonus() -> float:
 	return COOP_SYNERGY_BONUS if coop_synergy_enabled else 0.0
+
+
+# ── Hit-stop ──────────────────────────────────────────────────────────────────
+## Congela brevemente il time_scale per feedback impatto (freeze frame).
+## duration = secondi reali; intensity = time_scale durante il freeze (0 = fermo).
+var _hit_stop_active: bool = false
+
+func hit_stop(duration: float = 0.06, intensity: float = 0.0) -> void:
+	if _hit_stop_active:
+		return
+	_hit_stop_active = true
+	var prev: float = Engine.time_scale
+	Engine.time_scale = intensity
+	# ignore_time_scale=true: il timer scatta in tempo reale anche con time_scale=0
+	await get_tree().create_timer(duration, true, false, true).timeout
+	Engine.time_scale = prev
+	_hit_stop_active = false

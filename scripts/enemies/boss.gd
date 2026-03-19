@@ -175,6 +175,8 @@ func _enter_phase2() -> void:
 	if sprite != null:
 		sprite.modulate = base_color
 
+	CameraShake.heavy()
+	GameManager.hit_stop(0.12, 0.0)   # freeze frame spettacolare alla fase 2
 	phase_changed.emit(2)
 
 	CameraShake.heavy()

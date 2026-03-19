@@ -152,6 +152,30 @@ func stop_drone() -> void:
 	_drone_target_vol = 0.0
 
 
+func update_wave_intensity(wave: int) -> void:
+	## Scala la frequenza e il volume del drone in base alla wave corrente.
+	## wave 1-5: base. wave 6-15: tensione crescente. wave 16+: massima intensità.
+	var t := clampf((wave - 1) / 20.0, 0.0, 1.0)   # 0.0 @ wave 1, 1.0 @ wave 21+
+
+	# Pitch drone: salita graduale del 30% massimo (più urgente ad alta wave)
+	var pitch_mult := 1.0 + t * 0.30
+	if _drone_player:
+		_drone_player.pitch_scale = pitch_mult
+
+	# Volume drone: +50% alla wave 21
+	var base_vol: float = DRONE_CONFIGS.get(_drone_zone, DRONE_CONFIGS["void_black"]).get("vol", 0.10)
+	_drone_target_vol = base_vol * (1.0 + t * 0.50)
+
+	# Frequenza base dissonanza: cresce col wave (più aggressiva)
+	_drone_freq2 = _drone_freq * (2.0 + t * 0.40)
+
+	# SFX bus: aumenta leggermente il volume degli SFX (più presenti)
+	var sfx_idx: int = AudioServer.get_bus_index("SFX")
+	if sfx_idx >= 0:
+		var target_db: float = lerp(0.0, 3.0, t)
+		AudioServer.set_bus_volume_db(sfx_idx, target_db)
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  Signal handlers
 # ══════════════════════════════════════════════════════════════════════════════

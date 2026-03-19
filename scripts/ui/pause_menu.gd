@@ -106,6 +106,10 @@ func _on_game_paused(paused: bool) -> void:
 			settings_panel.visible = false
 		if controls_panel:
 			controls_panel.visible = false
+		# Salvataggio automatico alla pausa
+		var run_saver := get_node_or_null("/root/RunSaver")
+		if run_saver and run_saver.has_method("save_run"):
+			run_saver.save_run()
 		resume_button.grab_focus()
 
 
