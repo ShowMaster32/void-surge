@@ -92,11 +92,14 @@ func _on_hardcore_pressed() -> void:
 # ══════════════════════════════════════════════
 
 func _build_ui() -> void:
-	# Sfondo scuro
+	# ── Nebula animata in background ─────────────────────────────────────────
+	_add_nebula_background()
+
+	# Sfondo scuro semi-trasparente sopra la nebula
 	var bg := ColorRect.new()
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg.color        = C_BG
-	bg.mouse_filter = Control.MOUSE_FILTER_STOP
+	bg.color        = Color(0.01, 0.00, 0.06, 0.72)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
 	_add_stars(bg)
 
@@ -428,6 +431,62 @@ func _vline(parent: Control) -> void:
 	r.color               = Color(C_ACC2.r, C_ACC2.g, C_ACC2.b, 0.25)
 	r.custom_minimum_size = Vector2(2, 0)
 	parent.add_child(r)
+
+
+func _add_nebula_background() -> void:
+	var nebula := ColorRect.new()
+	nebula.set_anchors_preset(Control.PRESET_FULL_RECT)
+	nebula.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(nebula)
+
+	var shader := Shader.new()
+	shader.code = """
+shader_type canvas_item;
+uniform float time_scale : hint_range(0.0, 1.0) = 0.012;
+uniform vec4  col_a : source_color = vec4(0.10, 0.02, 0.35, 1.0);
+uniform vec4  col_b : source_color = vec4(0.30, 0.05, 0.70, 1.0);
+uniform vec4  col_c : source_color = vec4(0.02, 0.05, 0.20, 1.0);
+
+float hash(vec2 p) {
+	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+float noise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	float a = hash(i);
+	float b = hash(i + vec2(1.0, 0.0));
+	float c = hash(i + vec2(0.0, 1.0));
+	float d = hash(i + vec2(1.0, 1.0));
+	return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
+float fbm(vec2 p) {
+	float v = 0.0;
+	float a = 0.5;
+	for (int i = 0; i < 5; i++) {
+		v += a * noise(p);
+		p  = p * 2.1 + vec2(1.7, 9.2);
+		a *= 0.5;
+	}
+	return v;
+}
+
+void fragment() {
+	vec2 uv  = UV * 2.8;
+	float t  = TIME * time_scale;
+	vec2 q   = vec2(fbm(uv + t), fbm(uv + vec2(1.3, 4.1) + t * 0.9));
+	float c1 = fbm(uv + q * 1.5 + t * 0.5);
+	float c2 = fbm(uv + q       + vec2(t * 0.3, 0.0));
+	float cl: float = smoothstep(0.38, 0.75, c1 * 0.6 + c2 * 0.4);
+	vec3  rgb = mix(col_c.rgb, mix(col_a.rgb, col_b.rgb, cl), cl * 0.9);
+	COLOR = vec4(rgb, 1.0);
+}
+"""
+	var mat := ShaderMaterial.new()
+	mat.shader = shader
+	nebula.material = mat
 
 
 func _add_stars(parent: Control) -> void:

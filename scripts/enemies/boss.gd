@@ -177,12 +177,7 @@ func _enter_phase2() -> void:
 
 	phase_changed.emit(2)
 
-	# Screen shake sul giocatore più vicino
-	for player in get_tree().get_nodes_in_group("players"):
-		var cam := player.get_node_or_null("Camera2D") as Camera2D
-		if cam and is_instance_valid(VFX):
-			VFX.screen_shake(cam, 12.0, 0.55)
-		break
+	CameraShake.heavy()
 
 	# Notifica
 	var notifier := get_tree().get_first_node_in_group("milestone_notifier")
@@ -244,10 +239,7 @@ func _special_entropy_core() -> void:
 		if dist < 220.0:
 			if player.has_method("take_damage"):
 				player.take_damage(damage * 1.3)
-		# Screen shake per ogni giocatore colpito
-		var cam := player.get_node_or_null("Camera2D") as Camera2D
-		if cam and is_instance_valid(VFX):
-			VFX.screen_shake(cam, 9.0, 0.35)
+	CameraShake.medium()
 
 	# Burst VFX sulla posizione del boss
 	if is_instance_valid(VFX):

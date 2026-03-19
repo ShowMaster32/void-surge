@@ -25,6 +25,9 @@ var is_dead: bool  = false
 var base_color: Color            # cached so hit-flash can restore correctly
 var _attack_timer: float = 0.0  # countdown to next allowed attack
 
+## Variante del nemico: "", "speeder", "tank", "bomber"
+var variant: String = ""
+
 # ── internal ──────────────────────────────────────────────────────────────────
 # Rilevamento automatico: cerca il primo Sprite2D / AnimatedSprite2D figlio
 var sprite: Node2D = null
@@ -173,6 +176,49 @@ func setup_zone_color(zone_color: Color, blend_amount: float = 0.25) -> void:
 		sprite.modulate = base_color
 
 
+func set_variant(v: String) -> void:
+	## Applica modificatori di variante. Chiamare DOPO _ready().
+	variant = v
+	match v:
+		"speeder":
+			move_speed   *= 2.2
+			max_health   *= 0.45
+			health        = max_health
+			xp_value      = int(xp_value * 1.5)
+			attack_cooldown *= 0.6
+			if sprite != null:
+				sprite.scale   *= Vector2(0.65, 0.65)
+			base_color = base_color.lerp(Color(0.2, 1.0, 0.8), 0.55)
+			if sprite != null:
+				sprite.modulate = base_color
+
+		"tank":
+			move_speed   *= 0.38
+			max_health   *= 3.2
+			health        = max_health
+			damage        *= 1.6
+			soul_value    *= 3
+			xp_value      = int(xp_value * 2.5)
+			if sprite != null:
+				sprite.scale   *= Vector2(1.7, 1.7)
+			base_color = base_color.lerp(Color(0.6, 0.1, 0.1), 0.60)
+			if sprite != null:
+				sprite.modulate = base_color
+			# Collision più grande
+			if collision != null and collision.shape is CircleShape2D:
+				(collision.shape as CircleShape2D).radius *= 1.6
+
+		"bomber":
+			max_health   *= 1.15
+			health        = max_health
+			move_speed   *= 1.1
+			soul_value    *= 2
+			# Colore arancio/rosso acceso
+			base_color = base_color.lerp(Color(1.0, 0.4, 0.05), 0.70)
+			if sprite != null:
+				sprite.modulate = base_color
+
+
 # ══════════════════════════════════════════════
 #  Damage / death
 # ══════════════════════════════════════════════
@@ -233,9 +279,31 @@ func _die() -> void:
 	if collision != null:
 		collision.set_deferred("disabled", true)
 
+	# Bomber: esplode all'impatto danneggiando i player vicini
+	if variant == "bomber":
+		_bomber_explosion()
+
 	emit_signal("died", self)
 	_try_drop_equipment()
 	queue_free()
+
+
+func _bomber_explosion() -> void:
+	const BOMB_RADIUS := 160.0
+	const BOMB_DMG    := 22.0
+	CameraShake.medium()
+	for player in get_tree().get_nodes_in_group("players"):
+		if not is_instance_valid(player):
+			continue
+		if global_position.distance_to(player.global_position) <= BOMB_RADIUS:
+			if player.has_method("take_damage"):
+				player.take_damage(BOMB_DMG)
+	# VFX esplosione grande
+	var vfx_node: Node = get_node_or_null("/root/VFX")
+	if vfx_node != null and vfx_node.has_method("spawn_death_effect"):
+		vfx_node.spawn_death_effect(global_position, Color(1.0, 0.4, 0.05))
+		vfx_node.spawn_death_effect(global_position + Vector2(20, 0),  Color(1.0, 0.6, 0.0))
+		vfx_node.spawn_death_effect(global_position + Vector2(-20, 0), Color(1.0, 0.2, 0.0))
 
 
 # ── drop equipaggiamento ──────────────────────────────────────────────────────

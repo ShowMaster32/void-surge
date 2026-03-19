@@ -287,6 +287,27 @@ func _try_spawn_enemy() -> void:
 	active_enemies.append(enemy)
 	add_child(enemy)
 
+	# Applica variante DOPO add_child (il visual è già pronto)
+	var v := _pick_variant()
+	if v != "":
+		enemy.set_variant(v)
+
+
+func _pick_variant() -> String:
+	## Probabilità crescenti con le wave. Wave 1-4: solo normali.
+	if current_wave < 5:
+		return ""
+	var r := randf()
+	# Da wave 5 in poi: ~10% speeder, ~5% tank, ~5% bomber (aumentano con le wave)
+	var wave_bonus: float = clampf((current_wave - 4) * 0.008, 0.0, 0.20)
+	if r < 0.10 + wave_bonus:
+		return "speeder"
+	if r < 0.15 + wave_bonus * 1.5:
+		return "tank"
+	if r < 0.20 + wave_bonus * 2.0:
+		return "bomber"
+	return ""
+
 
 func _get_spawn_position() -> Vector2:
 	var players := get_tree().get_nodes_in_group("players")
