@@ -90,6 +90,42 @@ var _cd_e: float        = 0.0
 # Pierce bonus da arma attiva
 var _weapon_pierce_bonus: int = 0
 var _last_aim_dir: Vector2 = Vector2.ZERO   # ultima dir valida stick destro (controller)
+## Livello visivo proiettile 0–5, ricalcolato in _recalculate_stats()
+var _power_level: int = 0
+
+# ── Moduli nave ────────────────────────────────────────────────────────────────
+var _turret_dirs:       int   = 0
+var _turret_interval:   float = 0.0
+var _turret_dmg_mult:   float = 0.0
+var _turret_timer:      float = 0.0
+
+var _missile_count:     int   = 0
+var _missile_interval:  float = 0.0
+var _missile_dmg_mult:  float = 0.0
+var _missile_timer:     float = 0.0
+
+var _orb_count:         int   = 0
+var _orb_dmg_mult:      float = 0.0
+var _orb_angle:         float = 0.0
+var _orb_nodes:         Array = []
+var _orb_cd:            Array = []     # cooldown hit per orb (evita danno ogni frame)
+
+var _drone_count:       int   = 0
+var _drone_interval:    float = 0.0
+var _drone_timer:       float = 0.0
+var _drone_nodes:       Array = []
+
+# ── Sprint Boost (L2/LT — sempre disponibile, no acquisto) ────────────────────
+const BOOST_DURATION:   float = 0.70   ## secondi di velocità aumentata
+const BOOST_SPEED_MULT: float = 2.20   ## moltiplicatore velocità durante boost
+const BOOST_COOLDOWN:   float = 5.00   ## secondi di ricarica dopo uso
+var _boost_timer: float = 0.0          ## tempo rimanente del boost attivo
+var _boost_cd:    float = 0.0          ## cooldown rimanente prima del prossimo uso
+
+var _applied_module_levels: Dictionary = {}   # cache per evitare ricreazione inutile
+var _turret_visual:  Node2D = null            # icona rotante torretta
+var _missile_visual: Node2D = null            # icona missili (lampeggia al fuoco)
+var _missile_visual_t: float = 0.0            # oscillazione cosmetica
 
 
 func _ready() -> void:
@@ -191,6 +227,8 @@ func _recalculate_stats() -> void:
 
 	# 3. Bonus da Shop (acquistati durante la run, salvati in GameManager metadata)
 	#    damage_pct = moltiplicatore %  |  speed/fire_rate/crit/health = valori flat
+	#    cdr_bonus  = riduzione cooldown poteri (0.0–0.75)
+	var _shop_cdr: float = 0.0
 	if GameManager.has_meta("shop_bonuses"):
 		var sb: Dictionary = GameManager.get_meta("shop_bonuses") as Dictionary
 		damage      *= 1.0 + sb.get("damage_pct",       0.0)
@@ -198,6 +236,7 @@ func _recalculate_stats() -> void:
 		fire_rate    = maxf(fire_rate - sb.get("fire_rate_bonus", 0.0), 0.05)
 		crit_chance  = minf(crit_chance + sb.get("crit_bonus",   0.0), 0.95)
 		max_health  += sb.get("health_bonus",            0.0)
+		_shop_cdr    = clampf(sb.get("cdr_bonus", 0.0), 0.0, 0.75)
 
 	# 3.5  Bonus PERMANENTI da shop post-run (MetaManager.perm_upgrades)
 	#      Ogni punto acquistato aggiunge un'unità fissa di bonus.
@@ -207,6 +246,33 @@ func _recalculate_stats() -> void:
 	damage      *= 1.0 + pu.get("perm_dmg",  0) * 0.05
 	crit_chance  = minf(crit_chance + pu.get("perm_crit", 0) * 0.03, 0.95)
 	fire_rate    = maxf(fire_rate   - pu.get("perm_fr",   0) * 0.025, 0.05)
+
+	# 3.6  Moduli nave permanenti — riconfigura solo se i livelli sono cambiati
+	apply_modules()
+
+	# 3.7  Poteri attivabili — aggiorna slot se cambiati; applica CDR ad ogni ricalcolo
+	var new_pq := GameManager.get_meta("active_power_q", "") as String
+	if new_pq != _power_q:
+		_power_q = new_pq
+		_cd_q    = 0.0   # cooldown azzerato al cambio potere
+	_cd_max_q = POWER_COOLDOWNS.get(_power_q, 0.0) * (1.0 - _shop_cdr)
+	_cd_q     = minf(_cd_q, _cd_max_q)   # mai superiore al nuovo max
+
+	var new_pe := GameManager.get_meta("active_power_e", "") as String
+	if new_pe != _power_e:
+		_power_e = new_pe
+		_cd_e    = 0.0
+	_cd_max_e = POWER_COOLDOWNS.get(_power_e, 0.0) * (1.0 - _shop_cdr)
+	_cd_e     = minf(_cd_e, _cd_max_e)
+
+	# Compatibilità backward con vecchio meta "active_power" (solo E)
+	if _power_e.is_empty() and GameManager.has_meta("active_power"):
+		var legacy := GameManager.get_meta("active_power") as String
+		if legacy != _power_e:
+			_power_e  = legacy
+			_cd_e     = 0.0
+		_cd_max_e = POWER_COOLDOWNS.get(_power_e, 0.0) * (1.0 - _shop_cdr)
+		_cd_e     = minf(_cd_e, _cd_max_e)
 
 	# 4. Modificatori arma attiva
 	_weapon_pierce_bonus = 0
@@ -226,13 +292,22 @@ func _recalculate_stats() -> void:
 		"void_seeker":
 			damage *= 1.20
 
+	# Penalità Hardcore: -25% HP massimi
+	if GameManager.game_mode == "hardcore":
+		max_health *= 0.75
+
 	# Clamp
 	move_speed   = maxf(move_speed, 50.0)
 	damage       = maxf(damage, 1.0)
+	max_health   = maxf(max_health, 20.0)
 
 	# Aggiorna health corrente proporzionalmente
 	if current_health > 0:
 		current_health = minf(current_health, max_health)
+
+	# Power level visivo proiettili: 0 = base, 5 = massimo
+	# Ogni raddoppio del danno rispetto al base aggiunge ~2.5 livelli
+	_power_level = clamp(int((damage / maxf(base_damage, 1.0) - 1.0) * 2.5), 0, 5)
 
 	health_changed.emit(current_health, max_health)
 
@@ -273,6 +348,13 @@ func _physics_process(delta: float) -> void:
 	if _cd_q > 0.0: _cd_q = maxf(_cd_q - delta, 0.0)
 	if _cd_e > 0.0: _cd_e = maxf(_cd_e - delta, 0.0)
 
+	# Boost L2: decay timer e cooldown
+	if _boost_timer > 0.0: _boost_timer = maxf(_boost_timer - delta, 0.0)
+	if _boost_cd    > 0.0: _boost_cd    = maxf(_boost_cd    - delta, 0.0)
+	_check_boost_input()
+
+	_tick_modules(delta)
+
 
 ## Calcola la direzione di mira in modo affidabile per ogni input device.
 ## • player_id == 0 (keyboard+mouse) : usa get_global_mouse_position() sul nodo.
@@ -285,6 +367,13 @@ func _get_aim_dir() -> Vector2:
 	# anche se player_id == 0.
 	var device_id: int = InputManager.player_to_device.get(
 		player_id, InputManager.KEYBOARD_MOUSE_DEVICE)
+
+	# FIX: se P0 risulta ancora keyboard/mouse ma c'è un controller connesso,
+	# usa il primo joypad disponibile (es. controller connesso dopo l'avvio)
+	if device_id == InputManager.KEYBOARD_MOUSE_DEVICE:
+		var pads := Input.get_connected_joypads()
+		if not pads.is_empty():
+			device_id = pads[0]
 
 	if device_id == InputManager.KEYBOARD_MOUSE_DEVICE:
 		# ── Mouse ───────────────────────────────────────────────────────────
@@ -317,8 +406,19 @@ func _get_aim_dir() -> Vector2:
 ## world_half_size definisce il raggio del mondo partendo dal centro (0,0).
 ## Adatta world_half_size nel Inspector alla dimensione reale della tua arena.
 func _clamp_to_world() -> void:
-	global_position.x = clampf(global_position.x, -world_half_size.x, world_half_size.x)
-	global_position.y = clampf(global_position.y, -world_half_size.y, world_half_size.y)
+	## Mantiene il player entro i bordi visibili dello schermo.
+	## Calcola i limiti reali in unità mondo a partire dal viewport e dallo zoom
+	## della Camera2D: così i bordi coincidono esattamente con lo schermo,
+	## indipendentemente dalla risoluzione.
+	var cam := get_node_or_null("Camera2D") as Camera2D
+	var zoom := cam.zoom if cam != null else Vector2(1.5, 1.5)
+	var vp_size := get_viewport().get_visible_rect().size
+	# Margine pari al raggio del collider (16 px) + 4 px sicurezza
+	const MARGIN := 20.0
+	var hw := (vp_size.x * 0.5 / zoom.x) - MARGIN
+	var hh := (vp_size.y * 0.5 / zoom.y) - MARGIN
+	global_position.x = clampf(global_position.x, -hw, hw)
+	global_position.y = clampf(global_position.y, -hh, hh)
 
 
 func _update_visual_rotation() -> void:
@@ -330,9 +430,10 @@ func _update_visual_rotation() -> void:
 
 func _handle_movement(delta: float) -> void:
 	var move_vec := InputManager.get_movement_vector(player_id)
+	var cur_speed := move_speed * (BOOST_SPEED_MULT if _boost_timer > 0.0 else 1.0)
 
 	if move_vec.length_squared() > 0.0:
-		velocity = velocity.move_toward(move_vec * move_speed, ACCELERATION * delta)
+		velocity = velocity.move_toward(move_vec * cur_speed, ACCELERATION * delta)
 	else:
 		velocity = velocity.move_toward(Vector2.ZERO, FRICTION * delta)
 
@@ -417,6 +518,10 @@ func _spawn_proj(dir: Vector2, dmg: float, pierce: int,
 		p.damage = dmg
 	if "pierce_count" in p and pierce > 0:
 		p.pierce_count = pierce
+	if "owner_player_id" in p:
+		p.owner_player_id = player_id
+	if "power_level" in p:
+		p.power_level = _power_level
 	if p.has_method("setup"):
 		p.setup(dmg, pierce, _meta_proj_scale)
 	get_tree().current_scene.add_child(p)
@@ -520,6 +625,27 @@ func _on_inv_timer_timeout() -> void:
 	_invincible = false
 
 
+## L2/LT = Sprint Boost — sempre disponibile, no acquisto richiesto.
+## Durata BOOST_DURATION secondi a ×BOOST_SPEED_MULT velocità, poi CD BOOST_COOLDOWN s.
+func _check_boost_input() -> void:
+	var device_id: int = InputManager.player_to_device.get(
+		player_id, InputManager.KEYBOARD_MOUSE_DEVICE)
+	if device_id == InputManager.KEYBOARD_MOUSE_DEVICE:
+		return
+	# L2/LT = JOY_AXIS_TRIGGER_LEFT
+	if Input.get_joy_axis(device_id, JOY_AXIS_TRIGGER_LEFT) > 0.5 \
+			and _boost_cd <= 0.0 and _boost_timer <= 0.0:
+		_boost_timer = BOOST_DURATION
+		_boost_cd    = BOOST_COOLDOWN
+		# Flash azzurro breve per feedback visivo
+		var vis: Node2D = _visual if _visual != null else sprite
+		if vis:
+			var tw := create_tween()
+			tw.tween_property(vis, "modulate", Color(0.6, 1.0, 2.5, 1.0), 0.05)
+			tw.tween_property(vis, "modulate",
+				PLAYER_COLORS[clampi(player_id, 0, 3)], BOOST_DURATION)
+
+
 # ---------------------------------------------------------------------------
 # CO-OP SYNERGY
 # ---------------------------------------------------------------------------
@@ -575,16 +701,21 @@ func _input(event: InputEvent) -> void:
 		event.pressed):
 		if player_id == 0 or GameManager.player_count > 1:
 			GameManager.toggle_pause()
+			# FIX: marca l'evento come gestito così non raggiunge pause_menu._unhandled_input
+			# (che altrimenti trova is_paused=true e riprende subito il gioco)
+			get_viewport().set_input_as_handled()
 
-	# Poteri: Q / JOY_X = slot 1    E / JOY_Y = slot 2
-	if not is_dead:
+	# Poteri: Q / L1 (LB) = slot 1    E / R1 (RB) = slot 2
+	# Guard: L1/R1 vengono usati per switchare tab nello shop → attiva poteri
+	# SOLO quando si è effettivamente in gioco (state == PLAYING).
+	if not is_dead and GameManager.current_state == GameManager.GameState.PLAYING:
 		var is_q_kb:  bool = event.is_action_pressed("activate_power_q")
 		var is_q_joy: bool = (event is InputEventJoypadButton and
-			(event as InputEventJoypadButton).button_index == JOY_BUTTON_X and
+			(event as InputEventJoypadButton).button_index == JOY_BUTTON_LEFT_SHOULDER and
 			(event as InputEventJoypadButton).pressed)
 		var is_e_kb:  bool = event.is_action_pressed("activate_power_e")
 		var is_e_joy: bool = (event is InputEventJoypadButton and
-			(event as InputEventJoypadButton).button_index == JOY_BUTTON_Y and
+			(event as InputEventJoypadButton).button_index == JOY_BUTTON_RIGHT_SHOULDER and
 			(event as InputEventJoypadButton).pressed)
 		if is_q_kb or is_q_joy: _try_activate_q()
 		if is_e_kb or is_e_joy: _try_activate_e()
@@ -686,3 +817,346 @@ func _power_time_surge() -> void:
 	await get_tree().create_timer(4.0).timeout
 	if GameManager.has_meta("time_surge_active"):
 		GameManager.remove_meta("time_surge_active")
+
+
+# ══════════════════════════════════════════════
+#  MODULI NAVE
+# ══════════════════════════════════════════════
+
+## Chiamato da _recalculate_stats() e dal shop dopo l'acquisto.
+## Riconfigura i moduli solo se i livelli sono cambiati (cache).
+func apply_modules() -> void:
+	var pu := MetaManager.perm_upgrades
+	var new_levels := {
+		"module_turret":     pu.get("module_turret",     0) as int,
+		"module_missile":    pu.get("module_missile",    0) as int,
+		"module_shield_orb": pu.get("module_shield_orb", 0) as int,
+		"module_drone":      pu.get("module_drone",      0) as int,
+	}
+	if new_levels == _applied_module_levels:
+		return
+	_applied_module_levels = new_levels
+
+	# ── Torretta ──────────────────────────────────────────────────────────────
+	match new_levels["module_turret"]:
+		1: _turret_dirs = 8;  _turret_interval = 3.0; _turret_dmg_mult = 0.30
+		2: _turret_dirs = 8;  _turret_interval = 2.0; _turret_dmg_mult = 0.35
+		3: _turret_dirs = 16; _turret_interval = 1.5; _turret_dmg_mult = 0.40
+		_: _turret_dirs = 0;  _turret_interval = 0.0; _turret_dmg_mult = 0.0
+	_turret_timer = 0.0
+	_setup_turret_visual(new_levels["module_turret"])
+
+	# ── Missile ───────────────────────────────────────────────────────────────
+	match new_levels["module_missile"]:
+		1: _missile_count = 1; _missile_interval = 8.0; _missile_dmg_mult = 2.0
+		2: _missile_count = 2; _missile_interval = 5.0; _missile_dmg_mult = 2.5
+		_: _missile_count = 0; _missile_interval = 0.0; _missile_dmg_mult = 0.0
+	_missile_timer = 0.0
+	_setup_missile_visual(new_levels["module_missile"])
+
+	# ── Orb scudo ─────────────────────────────────────────────────────────────
+	_setup_orbs(new_levels["module_shield_orb"])
+
+	# ── Drone ─────────────────────────────────────────────────────────────────
+	_setup_drones(new_levels["module_drone"])
+
+
+# ── Setup orb ─────────────────────────────────────────────────────────────────
+
+func _setup_orbs(level: int) -> void:
+	for orb: Node in _orb_nodes:
+		if is_instance_valid(orb):
+			orb.queue_free()
+	_orb_nodes.clear()
+	_orb_cd.clear()
+
+	match level:
+		1: _orb_count = 2; _orb_dmg_mult = 0.50
+		2: _orb_count = 3; _orb_dmg_mult = 0.75
+		3: _orb_count = 4; _orb_dmg_mult = 1.00
+		_: _orb_count = 0; _orb_dmg_mult = 0.0
+
+	for _i in _orb_count:
+		var orb := Node2D.new()
+		# "●" ciano con outline neon — simula una sfera luminosa
+		var lbl := Label.new()
+		lbl.text = "●"
+		lbl.add_theme_font_size_override("font_size", 20)
+		lbl.add_theme_color_override("font_color",         Color(0.25, 0.92, 1.00, 0.95))
+		lbl.add_theme_constant_override("outline_size",    4)
+		lbl.add_theme_color_override("font_outline_color", Color(0.05, 0.60, 1.00, 0.70))
+		lbl.position = Vector2(-10, -12)
+		orb.add_child(lbl)
+		add_child(orb)
+		_orb_nodes.append(orb)
+		_orb_cd.append(0.0)
+
+
+# ── Setup droni ───────────────────────────────────────────────────────────────
+
+func _setup_drones(level: int) -> void:
+	for dn: Node in _drone_nodes:
+		if is_instance_valid(dn):
+			dn.queue_free()
+	_drone_nodes.clear()
+
+	match level:
+		1: _drone_count = 1; _drone_interval = 1.5
+		2: _drone_count = 2; _drone_interval = 0.8
+		_: _drone_count = 0; _drone_interval = 0.0
+	_drone_timer = 0.0
+
+	for _i in _drone_count:
+		var dn := Node2D.new()
+		# "◆" oro con outline ambrato — drone romboide ben visibile
+		var lbl := Label.new()
+		lbl.text = "◆"
+		lbl.add_theme_font_size_override("font_size", 17)
+		lbl.add_theme_color_override("font_color",         Color(1.00, 0.85, 0.10, 0.95))
+		lbl.add_theme_constant_override("outline_size",    3)
+		lbl.add_theme_color_override("font_outline_color", Color(0.90, 0.45, 0.00, 0.75))
+		lbl.position = Vector2(-8, -10)
+		dn.add_child(lbl)
+		add_child(dn)
+		_drone_nodes.append(dn)
+
+
+# ── Tick moduli (chiamato ogni physics frame) ─────────────────────────────────
+
+func _tick_modules(delta: float) -> void:
+	# Torretta
+	if _turret_dirs > 0:
+		_turret_timer += delta
+		if _turret_timer >= _turret_interval:
+			_turret_timer = 0.0
+			_fire_turret()
+
+	# Missile
+	if _missile_count > 0:
+		_missile_timer += delta
+		if _missile_timer >= _missile_interval:
+			_missile_timer = 0.0
+			_fire_missiles()
+
+	# Torretta: ruota il visual lentamente
+	if _turret_visual and is_instance_valid(_turret_visual):
+		_turret_visual.rotation += delta * 1.8
+
+	# Missile: oscillazione verticale cosmetica (bob su-giù) + carica colore
+	if _missile_visual and is_instance_valid(_missile_visual):
+		_missile_visual_t += delta * 3.0
+		_missile_visual.position.y = 28.0 + sin(_missile_visual_t) * 2.5
+		# Diventa più luminoso man mano che il cooldown si avvicina allo sparo
+		if _missile_interval > 0.0:
+			var charge := clampf(_missile_timer / _missile_interval, 0.0, 1.0)
+			_missile_visual.modulate = Color(1.0, 1.0, 1.0, 0.55 + charge * 0.45)
+
+	# Orb: orbita + danni da contatto
+	_update_orbs(delta)
+
+	# Droni: orbita + sparo
+	_update_drones(delta)
+
+
+# ── Visual torretta ───────────────────────────────────────────────────────────
+
+func _setup_turret_visual(level: int) -> void:
+	if _turret_visual and is_instance_valid(_turret_visual):
+		_turret_visual.queue_free()
+	_turret_visual = null
+	if level == 0:
+		return
+
+	_turret_visual = Node2D.new()
+	_turret_visual.position = Vector2(0, -26)
+
+	var body_lbl := Label.new()
+	body_lbl.text = "⊕"
+	body_lbl.add_theme_font_size_override("font_size", 18)
+	body_lbl.add_theme_color_override("font_color",         Color(1.00, 0.52, 0.20, 0.95))
+	body_lbl.add_theme_constant_override("outline_size",    3)
+	body_lbl.add_theme_color_override("font_outline_color", Color(0.80, 0.20, 0.00, 0.80))
+	body_lbl.position = Vector2(-9, -10)
+	_turret_visual.add_child(body_lbl)
+
+	for i in level:
+		var dot := Label.new()
+		dot.text = "▪"
+		dot.add_theme_font_size_override("font_size", 9)
+		dot.add_theme_color_override("font_color", Color(1.00, 0.52, 0.20, 0.80))
+		dot.position = Vector2(-6 + i * 8, 6)
+		_turret_visual.add_child(dot)
+
+	add_child(_turret_visual)
+
+
+# ── Visual missili ────────────────────────────────────────────────────────────
+
+func _setup_missile_visual(level: int) -> void:
+	if _missile_visual and is_instance_valid(_missile_visual):
+		_missile_visual.queue_free()
+	_missile_visual = null
+	_missile_visual_t = 0.0
+	if level == 0:
+		return
+
+	_missile_visual = Node2D.new()
+	_missile_visual.position = Vector2(0, 28)   # sotto la nave, opposto alla torretta
+
+	# Corpo icona: "▲" rosso-fuoco che evoca un razzo/missile
+	var body_lbl := Label.new()
+	body_lbl.text = "▲"
+	body_lbl.add_theme_font_size_override("font_size", 16)
+	body_lbl.add_theme_color_override("font_color",         Color(1.00, 0.28, 0.10, 0.95))
+	body_lbl.add_theme_constant_override("outline_size",    3)
+	body_lbl.add_theme_color_override("font_outline_color", Color(1.00, 0.70, 0.00, 0.80))
+	body_lbl.position = Vector2(-8, -10)
+	_missile_visual.add_child(body_lbl)
+
+	# Punti livello
+	for i in level:
+		var dot := Label.new()
+		dot.text = "▪"
+		dot.add_theme_font_size_override("font_size", 9)
+		dot.add_theme_color_override("font_color", Color(1.00, 0.45, 0.10, 0.80))
+		dot.position = Vector2(-6 + i * 8, 6)
+		_missile_visual.add_child(dot)
+
+	add_child(_missile_visual)
+
+
+# ── Torretta ──────────────────────────────────────────────────────────────────
+
+func _fire_turret() -> void:
+	if not projectile_scene:
+		return
+	var dmg := damage * _turret_dmg_mult
+	for i in _turret_dirs:
+		var dir := Vector2.RIGHT.rotated((TAU / _turret_dirs) * i)
+		_spawn_module_proj(global_position, dir, dmg)
+
+	# Flash sul visual torretta al momento dello sparo
+	if _turret_visual and is_instance_valid(_turret_visual):
+		var tw := create_tween()
+		tw.tween_property(_turret_visual, "modulate",
+			Color(2.0, 1.5, 0.5, 1.0), 0.05)
+		tw.tween_property(_turret_visual, "modulate",
+			Color.WHITE, 0.15)
+
+
+# ── Missile ───────────────────────────────────────────────────────────────────
+
+func _fire_missiles() -> void:
+	if not projectile_scene:
+		return
+	var enemies := get_tree().get_nodes_in_group("enemies")
+	if enemies.is_empty():
+		return
+	# Ordina per distanza
+	enemies.sort_custom(func(a: Node, b: Node) -> bool:
+		return global_position.distance_squared_to((a as Node2D).global_position) \
+			 < global_position.distance_squared_to((b as Node2D).global_position))
+
+	var dmg := damage * _missile_dmg_mult
+	for i in mini(_missile_count, enemies.size()):
+		var t: Node2D = enemies[i] as Node2D
+		var dir := (t.global_position - global_position).normalized()
+		_spawn_module_proj(global_position, dir, dmg)
+
+	# Flash sul visual missili al momento del lancio
+	if _missile_visual and is_instance_valid(_missile_visual):
+		var tw := create_tween()
+		tw.tween_property(_missile_visual, "modulate",
+			Color(3.0, 1.2, 0.2, 1.0), 0.04)
+		tw.tween_property(_missile_visual, "modulate",
+			Color.WHITE, 0.20)
+
+
+# ── Orb scudo ─────────────────────────────────────────────────────────────────
+
+func _update_orbs(delta: float) -> void:
+	if _orb_nodes.is_empty():
+		return
+	_orb_angle += delta * 2.2
+
+	# Aggiorna cooldown hit
+	for i in _orb_cd.size():
+		_orb_cd[i] = maxf(_orb_cd[i] - delta, 0.0)
+
+	var enemies := get_tree().get_nodes_in_group("enemies")
+
+	for i in _orb_nodes.size():
+		var orb: Node2D = _orb_nodes[i] as Node2D
+		if not is_instance_valid(orb):
+			continue
+		var angle   := _orb_angle + (TAU / _orb_nodes.size()) * float(i)
+		var orb_pos := global_position + Vector2.RIGHT.rotated(angle) * 48.0
+		orb.global_position = orb_pos
+
+		# Danno da contatto (hit radius 20px, cooldown 0.6s per orb)
+		if _orb_cd[i] <= 0.0:
+			for enemy: Node in enemies:
+				var e: Node2D = enemy as Node2D
+				if is_instance_valid(e) and orb_pos.distance_to(e.global_position) < 20.0:
+					if e.has_method("take_damage"):
+						e.take_damage(damage * _orb_dmg_mult)
+					_orb_cd[i] = 0.6
+					break
+
+
+# ── Droni ─────────────────────────────────────────────────────────────────────
+
+func _update_drones(delta: float) -> void:
+	if _drone_nodes.is_empty():
+		return
+
+	# Posizione orbita (offset di fase rispetto agli orb)
+	for i in _drone_nodes.size():
+		var dn: Node2D = _drone_nodes[i] as Node2D
+		if not is_instance_valid(dn):
+			continue
+		var angle   := _orb_angle * 0.65 + (TAU / maxi(_drone_count, 1)) * float(i) + PI * 0.5
+		dn.global_position = global_position + Vector2.RIGHT.rotated(angle) * 68.0
+
+	# Timer sparo droni
+	_drone_timer += delta
+	if _drone_timer >= _drone_interval:
+		_drone_timer = 0.0
+		_fire_drones()
+
+
+func _fire_drones() -> void:
+	if not projectile_scene:
+		return
+	var enemies := get_tree().get_nodes_in_group("enemies")
+	if enemies.is_empty():
+		return
+	enemies.sort_custom(func(a: Node, b: Node) -> bool:
+		return global_position.distance_squared_to((a as Node2D).global_position) \
+			 < global_position.distance_squared_to((b as Node2D).global_position))
+
+	for i in _drone_nodes.size():
+		var dn: Node2D = _drone_nodes[i] as Node2D
+		if not is_instance_valid(dn):
+			continue
+		var target_idx := mini(i, enemies.size() - 1)
+		var t: Node2D  = enemies[target_idx] as Node2D
+		var dir := (t.global_position - dn.global_position).normalized()
+		_spawn_module_proj(dn.global_position, dir, damage * 0.65)
+
+
+# ── Helper proiettile modulo ──────────────────────────────────────────────────
+
+func _spawn_module_proj(pos: Vector2, dir: Vector2, dmg: float) -> void:
+	if not projectile_scene:
+		return
+	var p := projectile_scene.instantiate()
+	p.global_position = pos + dir * 24.0
+	p.rotation        = dir.angle()
+	if "direction"   in p: p.direction = dir
+	if "damage"      in p: p.damage    = dmg
+	if p.has_method("setup"):
+		p.setup(dmg, 0, 0.75)   # proiettili modulo leggermente più piccoli
+	get_tree().current_scene.add_child(p)
+	if "direction" in p:
+		p.direction = dir

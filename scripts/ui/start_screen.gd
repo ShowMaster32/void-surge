@@ -15,8 +15,11 @@ const C_DIM   := Color(0.44, 0.44, 0.60)
 const C_HI    := Color(0.88, 0.88, 1.00)
 const C_GREEN := Color(0.22, 1.00, 0.50)
 
-var _title_lbl: Label  = null
-var _start_btn: Button = null
+var _title_lbl:     Label  = null
+var _start_btn:     Button = null   # bottone Standard
+var _hardcore_btn:  Button = null   # bottone Hardcore
+var _started:       bool   = false  ## guard anti-doppio avvio
+var _selected_mode: String = "standard"
 
 
 # ══════════════════════════════════════════════
@@ -33,11 +36,51 @@ func _ready() -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if visible and event.is_action_pressed("ui_accept"):
+	if not visible:
+		return
+	# Enter / Space / A → avvia nella modalità selezionata dal focus
+	if event.is_action_pressed("ui_accept"):
+		get_viewport().set_input_as_handled()
+		_trigger_focused_mode()
+		return
+	if event is InputEventJoypadButton:
+		var jb := event as InputEventJoypadButton
+		if jb.pressed and jb.button_index == JOY_BUTTON_A:
+			get_viewport().set_input_as_handled()
+			_trigger_focused_mode()
+
+
+## Avvia nella modalità del bottone attualmente in focus (Standard o Hardcore)
+func _trigger_focused_mode() -> void:
+	var focused := get_viewport().gui_get_focus_owner()
+	if focused == _hardcore_btn:
+		_on_hardcore_pressed()
+	else:
 		_on_start_pressed()
 
 
 func _on_start_pressed() -> void:
+	if _started:
+		return   # evita doppio avvio (button.pressed + _input entrambi possono scattare)
+	_started = true
+	GameManager.game_mode = _selected_mode
+	visible = false
+	var main := get_node_or_null("/root/Main")
+	if main and main.has_method("begin_game"):
+		main.begin_game()
+
+
+func _on_hardcore_pressed() -> void:
+	if _started:
+		return
+	if not MetaManager.is_hardcore_unlocked():
+		# Non sbloccato: lampeggia il tasto per feedback
+		var tw := create_tween()
+		tw.tween_property(_hardcore_btn, "modulate", Color(1.2, 0.3, 0.3), 0.1)
+		tw.tween_property(_hardcore_btn, "modulate", Color.WHITE, 0.2)
+		return
+	_started = true
+	GameManager.game_mode = "hardcore"
 	visible = false
 	var main := get_node_or_null("/root/Main")
 	if main and main.has_method("begin_game"):
@@ -178,13 +221,14 @@ func _build_columns(parent: VBoxContainer) -> void:
 	_ctrl_grid(ctrl, [
 		["Muovi",          "Stick sinistro"],
 		["Mira",           "Stick destro"],
-		["Spara",          "R1 / RT (hold)"],
-		["Potere Q",       "X / □  (Quadrato)"],
-		["Potere E",       "Y / △  (Triangolo)"],
-		["Pausa",          "Start / Options"],
-		["Naviga menu",    "D-pad / Stick sx"],
+		["Spara",          "R2 / RT  (grilletto dx, hold)"],
+		["Potere Q",       "L1 / LB  (spalla sinistra)"],
+		["Potere E",       "R1 / RB  (spalla destra)"],
+		["Sprint Boost",   "L2 / LT  (grilletto sx)"],
+		["Shop",           "Select / Share / Back"],
 		["Conferma",       "A / ×  (Croce)"],
 		["Annulla/Chiudi", "B / ○  (Cerchio)"],
+		["Pausa",          "Start / Options"],
 	])
 
 
@@ -221,31 +265,83 @@ func _build_start(parent: VBoxContainer) -> void:
 	parent.add_child(cc)
 
 	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 8)
+	vb.add_theme_constant_override("separation", 10)
 	vb.alignment = BoxContainer.ALIGNMENT_CENTER
 	cc.add_child(vb)
 
+	# ── Selezione modalità ────────────────────────────────────────────────────
+	vb.add_child(_lbl("SCEGLI MODALITÀ", 14, C_DIM))
+
+	var mode_hbox := HBoxContainer.new()
+	mode_hbox.add_theme_constant_override("separation", 16)
+	mode_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	vb.add_child(mode_hbox)
+
+	# Bottone STANDARD
 	_start_btn = Button.new()
-	_start_btn.text                = "▶   INIZIA PARTITA"
-	_start_btn.custom_minimum_size = Vector2(360, 66)
-	_start_btn.add_theme_font_size_override("font_size", 28)
+	_start_btn.text                = "▶  STANDARD"
+	_start_btn.custom_minimum_size = Vector2(280, 62)
+	_start_btn.add_theme_font_size_override("font_size", 24)
 	_start_btn.add_theme_color_override("font_color",         Color(0.02, 0.02, 0.08))
 	_start_btn.add_theme_color_override("font_hover_color",   Color.BLACK)
 	_start_btn.add_theme_color_override("font_pressed_color", Color.BLACK)
-	var n := _mk_style(Color(0.10, 0.75, 1.00), Color(0.20, 0.95, 1.00), 12, 2)
-	var h := _mk_style(Color(0.15, 0.92, 1.00), Color.WHITE, 12, 3)
-	_start_btn.add_theme_stylebox_override("normal",  n)
-	_start_btn.add_theme_stylebox_override("hover",   h)
-	_start_btn.add_theme_stylebox_override("pressed", h)
-	_start_btn.add_theme_stylebox_override("focus",   h)
+	var sn := _mk_style(Color(0.10, 0.75, 1.00), Color(0.20, 0.95, 1.00), 12, 2)
+	var sh := _mk_style(Color(0.15, 0.92, 1.00), Color.WHITE, 12, 3)
+	_start_btn.add_theme_stylebox_override("normal",  sn)
+	_start_btn.add_theme_stylebox_override("hover",   sh)
+	_start_btn.add_theme_stylebox_override("pressed", sh)
+	_start_btn.add_theme_stylebox_override("focus",   sh)
 	_start_btn.focus_mode = Control.FOCUS_ALL
 	_start_btn.pressed.connect(_on_start_pressed)
-	vb.add_child(_start_btn)
-	_start_btn.grab_focus()
+	mode_hbox.add_child(_start_btn)
 
-	vb.add_child(_lbl(
-		"Enter  /  Space  /  A Controller  per avviare",
-		15, C_DIM))
+	# Bottone HARDCORE
+	var hc_unlocked := MetaManager.is_hardcore_unlocked()
+	_hardcore_btn = Button.new()
+	_hardcore_btn.text = ("☠  HARDCORE" if hc_unlocked
+		else "🔒  HARDCORE\n[wave 8+ o 500 ψ]")
+	_hardcore_btn.custom_minimum_size = Vector2(280, 62)
+	_hardcore_btn.add_theme_font_size_override("font_size", 22)
+	var hc_base_col := Color(1.00, 0.22, 0.22)
+	var hc_bg_col   := Color(0.40, 0.03, 0.05) if not hc_unlocked else Color(0.80, 0.10, 0.10)
+	_hardcore_btn.add_theme_color_override("font_color",
+		hc_base_col if hc_unlocked else Color(0.50, 0.30, 0.30))
+	_hardcore_btn.add_theme_color_override("font_hover_color", Color(1.0, 0.6, 0.6))
+	_hardcore_btn.add_theme_color_override("font_pressed_color", Color.WHITE)
+	var hn := _mk_style(hc_bg_col,        Color(hc_base_col.r, hc_base_col.g, hc_base_col.b, 0.70), 12, 2)
+	var hh := _mk_style(Color(0.75, 0.10, 0.10), Color.WHITE, 12, 3)
+	_hardcore_btn.add_theme_stylebox_override("normal",  hn)
+	_hardcore_btn.add_theme_stylebox_override("hover",   hh if hc_unlocked else hn)
+	_hardcore_btn.add_theme_stylebox_override("pressed", hh)
+	_hardcore_btn.add_theme_stylebox_override("focus",   hh if hc_unlocked else hn)
+	_hardcore_btn.focus_mode = Control.FOCUS_ALL
+	_hardcore_btn.pressed.connect(_on_hardcore_pressed)
+	mode_hbox.add_child(_hardcore_btn)
+
+	# Focus sul bottone standard
+	_start_btn.grab_focus()
+	_start_btn.focus_neighbor_right = _hardcore_btn.get_path()
+	_hardcore_btn.focus_neighbor_left = _start_btn.get_path()
+
+	# Descrizioni modalità
+	var desc_hbox := HBoxContainer.new()
+	desc_hbox.add_theme_constant_override("separation", 16)
+	desc_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	vb.add_child(desc_hbox)
+
+	var std_lbl := _lbl("Difficoltà bilanciata\nBoss ogni 5 wave", 13, C_DIM)
+	std_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	std_lbl.custom_minimum_size  = Vector2(280, 0)
+	desc_hbox.add_child(std_lbl)
+
+	var hc_hint := ("HP ×2 | Danno ×1.5 | Boss ogni 3 wave\n+50% Souls reward"
+		if hc_unlocked else "Completa wave 8 o accumula 500 ψ Souls\nper sbloccare la modalità Hardcore")
+	var hc_lbl := _lbl(hc_hint, 13, Color(1.0, 0.5, 0.5) if hc_unlocked else Color(0.45, 0.30, 0.30))
+	hc_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hc_lbl.custom_minimum_size  = Vector2(280, 0)
+	desc_hbox.add_child(hc_lbl)
+
+	vb.add_child(_lbl("Enter / Space / A Controller  per avviare", 14, C_DIM))
 
 
 # ══════════════════════════════════════════════

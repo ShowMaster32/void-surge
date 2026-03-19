@@ -52,6 +52,7 @@ const RARITY_WEIGHTS: Dictionary = {
 ##   pierce          → +val proiettili piercing
 ##   souls_bonus     → ricevi subito val Souls
 ##   reroll          → rimescola gli oggetti nello shop
+##   cdr_bonus       → riduce cooldown poteri del val% (es. 0.20 = -20%)
 # ── Colori slot poteri (coerente con HUD) ─────────────────────────────────────
 const C_SLOT_Q := Color(0.20, 0.88, 1.00)   # cyan  – slot Q
 const C_SLOT_E := Color(1.00, 0.55, 0.12)   # arancio – slot E
@@ -77,6 +78,76 @@ const POWER_CATALOG: Array = [
 		"id": "time_surge",   "name": "Time Surge",    "icon": "⏳",
 		"desc": "Rallenta tutti i nemici al 25% della velocità per 4 secondi.",
 		"cd": 18.0, "cost": 200,
+	},
+]
+
+# ── Skin navicella (acquisto permanente) ──────────────────────────────────────
+const SKIN_CATALOG: Array = [
+	{
+		"id": "default",
+		"name": "Voidrunner",
+		"icon": "🛸",
+		"desc": "La navicella standard.\nBilanciata e affidabile in ogni situazione.",
+		"cost": 0,
+		"color": Color(0.55, 0.22, 1.00),
+	},
+	{
+		"id": "interceptor",
+		"name": "Interceptor",
+		"icon": "✈",
+		"desc": "Caccia d'assalto aerodinamico.\nNose allungato, ali delta swept-back.",
+		"cost": 250,
+		"color": Color(0.30, 0.60, 1.00),
+	},
+	{
+		"id": "titan",
+		"name": "Titan",
+		"icon": "🚀",
+		"desc": "Incrociatore pesante corazzato.\nScafo largo, ali massive.",
+		"cost": 400,
+		"color": Color(0.90, 0.65, 0.20),
+	},
+	{
+		"id": "phantom",
+		"name": "Phantom",
+		"icon": "👻",
+		"desc": "Stealth puro. Silhouette a rombo,\nprofilo sottilissimo, quasi invisibile.",
+		"cost": 600,
+		"color": Color(0.50, 0.80, 0.90),
+	},
+]
+
+# ── Moduli nave permanenti ─────────────────────────────────────────────────────
+## Acquistati nello shop in-run, persistono tra TUTTE le run.
+## Ogni modulo ha max_level livelli, ognuno con costo crescente.
+const MODULE_CATALOG: Array = [
+	{
+		"id": "module_turret",
+		"name": "Torretta Automatica", "icon": "🔫",
+		"desc": "Mini-cannone rotante.\nLv1: 8 dir ogni 3s\nLv2: 8 dir ogni 2s\nLv3: 16 dir ogni 1.5s",
+		"max_level": 3, "costs": [150, 300, 500],
+		"color": Color(1.00, 0.52, 0.20),   # arancio-fuoco
+	},
+	{
+		"id": "module_missile",
+		"name": "Lanciamissili", "icon": "🚀",
+		"desc": "Spara un missile guidato al nemico più vicino.\nLv1: 1 missile ogni 8s\nLv2: 2 missili ogni 5s",
+		"max_level": 2, "costs": [200, 420],
+		"color": Color(1.00, 0.20, 0.30),   # rosso
+	},
+	{
+		"id": "module_shield_orb",
+		"name": "Orb Scudo", "icon": "🔵",
+		"desc": "Sfere energetiche orbitanti che bruciano i nemici al contatto.\nLv1: 2 orb\nLv2: 3 orb ×1.5 dmg\nLv3: 4 orb ×2 dmg",
+		"max_level": 3, "costs": [180, 360, 600],
+		"color": Color(0.20, 0.70, 1.00),   # blu
+	},
+	{
+		"id": "module_drone",
+		"name": "Drone Compagno", "icon": "🤖",
+		"desc": "Droni autonomi che orbitano e sparano ai nemici vicini.\nLv1: 1 drone, 1.5s/colpo\nLv2: 2 droni, 0.8s/colpo",
+		"max_level": 2, "costs": [250, 520],
+		"color": Color(1.00, 0.82, 0.10),   # oro
 	},
 ]
 
@@ -137,6 +208,11 @@ const ITEM_CATALOG: Array = [
 		"cost": 35, "rarity": "common", "fx": "souls_bonus", "val": 70.0,
 	},
 	{
+		"id": "cdr_up",     "name": "Nucleo Temporale",      "icon": "⏱",
+		"desc": "Riduce il cooldown di tutti i poteri del 20%.\nCumulabile (max 75%).",
+		"cost": 130, "rarity": "rare", "fx": "cdr_bonus", "val": 0.20,
+	},
+	{
 		"id": "reroll",     "name": "Rimescola",             "icon": "🔄",
 		"desc": "Rigenera tutti gli oggetti nello shop.",
 		"cost": 90, "rarity": "rare", "fx": "reroll", "val": 0.0,
@@ -149,8 +225,9 @@ var _souls_lbl:     Label
 var _item_grid:     HBoxContainer   # griglia oggetti (tab 0)
 var _content_area:  Control         # contenitore generico sostituito ad ogni cambio tab
 var _title_lbl:     Label
-var _current_items: Array = []
-var _is_open:       bool  = false
+var _current_items:  Array = []
+var _is_open:        bool  = false
+var _items_rolled:   bool  = false   # true dopo _roll_items() della wave corrente
 # Tab: 0=Potenziamenti  1=Potere Q  2=Potere E
 var _current_tab:   int   = 0
 var _tab_btns:      Array = []
@@ -165,29 +242,83 @@ func _ready() -> void:
 	# PROCESS_MODE_ALWAYS: continua a funzionare anche quando get_tree().paused = true
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	set_process_unhandled_key_input(true)
+	set_process_unhandled_input(true)   # necessario per ricevere eventi joypad
 	_build_ui()
 	_hook_wave_signal()
 
 
-## F2 / tasto B controller per aprire-chiudere lo shop
+## Tastiera: F2 apri/chiudi shop (debug), F3 regala souls (debug)
 func _unhandled_key_input(event: InputEvent) -> void:
-	# F2 da tastiera (debug toggle)
-	if debug_key_open and event is InputEventKey \
-			and (event as InputEventKey).pressed \
-			and (event as InputEventKey).keycode == KEY_F2:
+	if not (event is InputEventKey) or not (event as InputEventKey).pressed:
+		return
+	if debug_key_open and (event as InputEventKey).keycode == KEY_F2:
+		# F2 — apri/chiudi shop
 		get_viewport().set_input_as_handled()
 		if _is_open:
 			_close()
 		else:
 			_open()
+	elif debug_key_open and (event as InputEventKey).keycode == KEY_F3:
+		# F3 — DEBUG: regala 9999 souls
+		get_viewport().set_input_as_handled()
+		MetaManager.total_souls += 9999
+		MetaManager.save_progress()
+		_refresh_souls()
+		if _is_open:
+			_rebuild_grid()   # aggiorna bottoni acquistabili
+
+
+## Controller: Select/Back = apri shop  |  B/Cerchio = chiudi shop
+## A/X = conferma/compra (fallback esplicito se ui_accept non raggiunge il Button in focus)
+func _unhandled_input(event: InputEvent) -> void:
+	if not (event is InputEventJoypadButton):
+		return
+	var jb := event as InputEventJoypadButton
+	if not jb.pressed:
 		return
 
-	# Tasto B / Circle del controller → chiudi shop
-	if _is_open and event is InputEventJoypadButton \
-			and (event as InputEventJoypadButton).pressed \
-			and (event as InputEventJoypadButton).button_index == JOY_BUTTON_B:
-		get_viewport().set_input_as_handled()
-		_close()
+	match jb.button_index:
+		JOY_BUTTON_BACK:
+			# Select / Share / Back — apri shop se chiuso, chiudi se aperto
+			get_viewport().set_input_as_handled()
+			if _is_open:
+				_close()
+			else:
+				_open()
+		JOY_BUTTON_B:
+			# B (Xbox) / Cerchio (PS) — chiudi shop
+			if _is_open:
+				get_viewport().set_input_as_handled()
+				_close()
+		JOY_BUTTON_A:
+			# A (Xbox) / Croce (PS) — conferma / acquista il bottone in focus
+			# Fallback necessario: i Button in CanvasLayer non sempre ricevono ui_accept
+			# dal joypad in Godot 4, quindi gestiamo noi stessi il click.
+			if _is_open:
+				get_viewport().set_input_as_handled()
+				var focused := get_viewport().gui_get_focus_owner()
+				# is_instance_valid: evita crash se il bottone è in queue_free (rebuild griglia)
+				if focused is Button and is_instance_valid(focused) \
+						and not (focused as Button).disabled:
+					(focused as Button).pressed.emit()
+				else:
+					# Fallback: se il focus è invalido/null, cerca il primo bottone abilitato
+					# (succede raramente quando il rebuild della griglia è ancora in corso)
+					var btn := _find_first_enabled_button(_content_area)
+					if btn:
+						btn.grab_focus()
+						btn.pressed.emit()
+		JOY_BUTTON_LEFT_SHOULDER:
+			# L1 / LB — tab precedente (solo quando lo shop è aperto)
+			# I poteri Q/E in player.gd sono bloccati quando state != PLAYING
+			if _is_open:
+				get_viewport().set_input_as_handled()
+				_switch_tab(posmod(_current_tab - 1, _tab_btns.size()))
+		JOY_BUTTON_RIGHT_SHOULDER:
+			# R1 / RB — tab successiva
+			if _is_open:
+				get_viewport().set_input_as_handled()
+				_switch_tab((_current_tab + 1) % _tab_btns.size())
 
 
 ## Si aggancia al segnale wave_changed dell'EnemySpawner (trovato tramite gruppo).
@@ -202,6 +333,10 @@ func _hook_wave_signal() -> void:
 
 
 func _on_wave_changed(_wave: int) -> void:
+	# Nuova wave: resetta il flag così _open() sa che può rullare
+	_items_rolled = false
+	_roll_items()
+	_items_rolled = true   # blocca ulteriori re-roll fino alla prossima wave
 	_open()
 
 
@@ -226,11 +361,11 @@ func _build_ui() -> void:
 	# Panel centrale
 	var panel := Panel.new()
 	panel.set_anchors_preset(Control.PRESET_CENTER)
-	panel.custom_minimum_size = Vector2(900, 460)
-	panel.offset_left   = -450
-	panel.offset_right  =  450
-	panel.offset_top    = -245
-	panel.offset_bottom =  245
+	panel.custom_minimum_size = Vector2(1040, 560)
+	panel.offset_left   = -520
+	panel.offset_right  =  520
+	panel.offset_top    = -280
+	panel.offset_bottom =  280
 	panel.add_theme_stylebox_override("panel", _mk_style(C_BG, C_ACC, 16, 2))
 	_canvas.add_child(panel)
 
@@ -248,15 +383,15 @@ func _build_ui() -> void:
 	header.add_theme_constant_override("separation", 16)
 	vbox.add_child(header)
 
-	_title_lbl = _lbl("🛒  VOID SHOP", 26, C_ACC, 3, Color(0, 0, 0, 0.9))
+	_title_lbl = _lbl("🛒  VOID SHOP", 30, C_ACC, 3, Color(0, 0, 0, 0.9))
 	_title_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(_title_lbl)
 
-	var souls_icon := _lbl("ψ", 22, C_GOLD)
+	var souls_icon := _lbl("ψ", 26, C_GOLD)
 	souls_icon.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	header.add_child(souls_icon)
 
-	_souls_lbl = _lbl("0", 22, C_GOLD, 2, Color(0, 0, 0, 0.8))
+	_souls_lbl = _lbl("0", 26, C_GOLD, 2, Color(0, 0, 0, 0.8))
 	_souls_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	header.add_child(_souls_lbl)
 
@@ -266,22 +401,44 @@ func _build_ui() -> void:
 	sep_line.custom_minimum_size = Vector2(0, 2)
 	vbox.add_child(sep_line)
 
-	# ── Tab bar ────────────────────────────────────────────────────────────────
+	# ── Tab bar con hint spalle controller ──────────────────────────────────────
+	# Riga esterna: hint L1/LB | tab_bar | hint R1/RB
+	var tab_row := HBoxContainer.new()
+	tab_row.add_theme_constant_override("separation", 8)
+	tab_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_child(tab_row)
+
+	# Hint lato sinistro (tab precedente)
+	var lhint := _lbl("◄ L1 / LB", 13, Color(0.55, 0.55, 0.70))
+	lhint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	tab_row.add_child(lhint)
+
 	var tab_bar := HBoxContainer.new()
 	tab_bar.add_theme_constant_override("separation", 6)
-	vbox.add_child(tab_bar)
+	tab_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tab_bar.alignment = BoxContainer.ALIGNMENT_CENTER
+	tab_row.add_child(tab_bar)
+
+	# Hint lato destro (tab successiva)
+	var rhint := _lbl("R1 / RB ►", 13, Color(0.55, 0.55, 0.70))
+	rhint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	tab_row.add_child(rhint)
 
 	var tab_defs: Array = [
-		["⚡  POTENZIAMENTI", C_ACC],
-		["◈  POTERE  Q",     C_SLOT_Q],
-		["◈  POTERE  E",     C_SLOT_E],
+		["⚡  BOOST",        C_ACC],
+		["◈  POTERE  Q",    C_SLOT_Q],
+		["◈  POTERE  E",    C_SLOT_E],
+		["🚀  MODULI",      Color(1.00, 0.82, 0.10)],
+		["🎨  SKIN",        Color(0.90, 0.55, 1.00)],
 	]
 	for ti: int in tab_defs.size():
 		var td: Array = tab_defs[ti]
 		var tb := _action_btn(td[0] as String, td[1] as Color)
-		tb.custom_minimum_size = Vector2(190, 36)
+		tb.custom_minimum_size = Vector2(155, 40)
 		tb.add_theme_font_size_override("font_size", 13)
-		tb.focus_mode = Control.FOCUS_ALL
+		# FOCUS_NONE: i tab non sono raggiungibili col D-pad.
+		# Si cambiano SOLO con L1/R1 (JOY_BUTTON_LEFT/RIGHT_SHOULDER).
+		tb.focus_mode = Control.FOCUS_NONE
 		var idx := ti   # capture
 		tb.pressed.connect(func(): _switch_tab(idx))
 		tab_bar.add_child(tb)
@@ -332,7 +489,7 @@ func _build_ui() -> void:
 	skip_btn.name = "SkipBtn"
 	footer.add_child(skip_btn)
 
-	var ctrl_hint := _lbl("🎮  [A] Compra  [B] Chiudi  [D-pad / LS] Naviga", 10, C_DIM)
+	var ctrl_hint := _lbl("🎮  [Select] Apri  [A/X] Compra  [B/○] Chiudi  [D-pad/LS] Naviga", 13, C_DIM)
 	ctrl_hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	ctrl_hint.horizontal_alignment  = HORIZONTAL_ALIGNMENT_RIGHT
 	footer.add_child(ctrl_hint)
@@ -350,7 +507,11 @@ func _open() -> void:
 	   GameManager.current_state == GameManager.GameState.MENU:
 		return
 	_is_open = true
-	_roll_items()
+	# NON ri-rollare se già eseguito in questa wave (_items_rolled == true).
+	# Fallback solo per debug (F2 prima di qualsiasi wave) o prima apertura.
+	if not _items_rolled:
+		_roll_items()
+		_items_rolled = true
 	_rebuild_grid()
 	_refresh_souls()
 	_update_title()
@@ -365,6 +526,8 @@ func _close() -> void:
 		return
 	_is_open = false
 	_canvas.visible = false
+	# FIX: rilascia il focus GUI così nessun button invisible intercetta gli input
+	get_viewport().gui_release_focus()
 	if GameManager.current_state == GameManager.GameState.PAUSED:
 		GameManager.current_state = GameManager.GameState.PLAYING
 	shop_closed.emit()
@@ -394,25 +557,64 @@ func _refresh_tab_buttons() -> void:
 
 
 func _grab_first_focus() -> void:
-	## Dà il focus al primo bottone acquistabile per navigazione controller.
-	## Usato ogni volta che lo shop apre o cambia tab.
+	## Dà il focus al primo bottone ABILITATO per navigazione controller.
+	## Usato ogni volta che lo shop apre, cambia tab o completa un acquisto.
 	await get_tree().process_frame
-	# Cerca il primo Button abilitato nell'area contenuto (qualunque tab)
-	var btn := _find_first_button(_content_area)
-	if btn and not btn.disabled:
-		btn.grab_focus()
+	# FIX: se lo shop è già stato chiuso durante l'await, non dare focus
+	if not _is_open:
 		return
-	# Fallback: pulsante "Continua"
+	# Raccoglie tutti i button abilitati e collega la catena focus esplicita.
+	# Necessario perché Godot 4 non riesce a navigare automaticamente tra bottoni
+	# annidati in PanelContainer→VBoxContainer con D-pad/freccette.
+	var btns := _collect_focusable_buttons(_content_area)
+	_setup_focus_chain(btns)
+	if btns.size() > 0:
+		btns[0].grab_focus()
+		return
+	# Fallback: pulsante "Continua ▶"
 	var skip := _canvas.find_child("SkipBtn", true, false)
 	if skip is Button:
 		(skip as Button).grab_focus()
 
 
-func _find_first_button(node: Node) -> Button:
+## Raccoglie depth-first TUTTI i Button abilitati e focalizzabili nell'albero.
+func _collect_focusable_buttons(node: Node) -> Array:
+	var result: Array = []
 	if node is Button:
-		return node as Button
+		var b := node as Button
+		if not b.disabled and b.focus_mode != Control.FOCUS_NONE:
+			result.append(b)
+		return result   # non scendere nei figli di un Button
 	for child in node.get_children():
-		var found := _find_first_button(child)
+		result.append_array(_collect_focusable_buttons(child))
+	return result
+
+
+## Collega esplicitamente focus_neighbor_left/right tra i bottoni della lista.
+## Avvolge circolarmente: l'ultimo→primo e primo→ultimo.
+## Su/giù: rimane sul bottone stesso (impedisce uscita dalla riga).
+func _setup_focus_chain(btns: Array) -> void:
+	var n := btns.size()
+	if n == 0:
+		return
+	for i in n:
+		var b := btns[i] as Button
+		b.focus_neighbor_left   = btns[posmod(i - 1, n)].get_path()
+		b.focus_neighbor_right  = btns[(i + 1) % n].get_path()
+		b.focus_neighbor_top    = b.get_path()   # rimani sulla riga (non uscire su)
+		b.focus_neighbor_bottom = b.get_path()   # rimani sulla riga (non uscire giù)
+
+
+## Ricerca depth-first del primo Button abilitato e focalizzabile.
+## Salta i bottoni disabled o con focus_mode = FOCUS_NONE.
+func _find_first_enabled_button(node: Node) -> Button:
+	if node is Button:
+		var b := node as Button
+		if not b.disabled and b.focus_mode != Control.FOCUS_NONE:
+			return b
+		return null   # non scendere nei figli di un bottone
+	for child in node.get_children():
+		var found := _find_first_enabled_button(child)
 		if found:
 			return found
 	return null
@@ -469,6 +671,10 @@ func _rebuild_grid() -> void:
 			_rebuild_powers_tab("q")
 		2:
 			_rebuild_powers_tab("e")
+		3:
+			_rebuild_modules_tab()
+		4:
+			_rebuild_skins_tab()
 
 
 # ══════════════════════════════════════════════
@@ -501,18 +707,21 @@ func _build_power_card(
 		slot_col: Color,
 		equipped_id: String) -> PanelContainer:
 
-	var pid:  String = power["id"]
-	var cost: int    = power["cost"] as int
-	var is_equipped: bool = (pid == equipped_id)
-	var affordable: bool  = MetaManager.total_souls >= cost or is_equipped
+	var pid:         String = power["id"]
+	var cost:        int    = power["cost"] as int
+	var is_equipped: bool   = (pid == equipped_id)
+	var is_unlocked: bool   = MetaManager.is_power_unlocked(pid)
+	var can_afford:  bool   = MetaManager.total_souls >= cost
+	# La card è "active" se è equipaggiata, sbloccata, o comprabile
+	var active:      bool   = is_equipped or is_unlocked or can_afford
 
-	var border_col := slot_col if not is_equipped else Color.WHITE
+	var border_col := Color.WHITE if is_equipped else slot_col
 	var pc := PanelContainer.new()
-	pc.custom_minimum_size = Vector2(196, 230)
+	pc.custom_minimum_size = Vector2(212, 262)
 	var sty := _mk_style(
 		Color(slot_col.r * 0.07, slot_col.g * 0.07, slot_col.b * 0.07, 0.97),
-		border_col if affordable else C_DIM,
-		12, 2 if (affordable or is_equipped) else 1)
+		border_col if active else C_DIM,
+		12, 2 if active else 1)
 	sty.content_margin_left   = 14.0
 	sty.content_margin_right  = 14.0
 	sty.content_margin_top    = 12.0
@@ -527,74 +736,347 @@ func _build_power_card(
 	var top_row := HBoxContainer.new()
 	top_row.add_theme_constant_override("separation", 6)
 	vbox.add_child(top_row)
-	top_row.add_child(_lbl(power["icon"] as String, 32, slot_col))
-	var badge_txt := ("SLOT " + slot_key.to_upper()) + ("  ✓" if is_equipped else "")
-	var badge := _lbl(badge_txt, 9, slot_col if not is_equipped else Color.WHITE)
+	top_row.add_child(_lbl(power["icon"] as String, 36, slot_col))
+	var badge_extra := ("  ✓" if is_equipped else ("  🔓" if is_unlocked else ""))
+	var badge_txt   := ("SLOT " + slot_key.to_upper()) + badge_extra
+	var badge := _lbl(badge_txt, 12, Color.WHITE if is_equipped else slot_col)
 	badge.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	badge.horizontal_alignment  = HORIZONTAL_ALIGNMENT_RIGHT
 	badge.vertical_alignment    = VERTICAL_ALIGNMENT_BOTTOM
 	top_row.add_child(badge)
 
 	# Nome
-	vbox.add_child(_lbl(power["name"] as String, 15,
-		slot_col if not is_equipped else Color.WHITE, 1, Color(0, 0, 0, 0.7)))
+	vbox.add_child(_lbl(power["name"] as String, 17,
+		Color.WHITE if is_equipped else slot_col, 1, Color(0, 0, 0, 0.7)))
 
 	# Cooldown
-	var cd_lbl := _lbl("⏱  CD: %.0fs" % (power["cd"] as float), 11, C_DIM)
-	vbox.add_child(cd_lbl)
+	vbox.add_child(_lbl("⏱  CD: %.0fs" % (power["cd"] as float), 13, C_DIM))
 
 	# Descrizione
-	var desc := _lbl(power["desc"] as String, 11, C_HI)
+	var desc := _lbl(power["desc"] as String, 13, C_HI)
 	desc.autowrap_mode       = TextServer.AUTOWRAP_WORD_SMART
 	desc.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	vbox.add_child(desc)
 
+	# Hint sblocco permanente
+	if not is_unlocked:
+		var hint := _lbl("🔒 Sblocco permanente", 11, C_DIM)
+		vbox.add_child(hint)
+
 	# Bottone
 	var btn := Button.new()
-	btn.add_theme_font_size_override("font_size", 14)
-	btn.custom_minimum_size = Vector2(0, 36)
+	btn.add_theme_font_size_override("font_size", 15)
+	btn.custom_minimum_size = Vector2(0, 40)
 	btn.focus_mode          = Control.FOCUS_ALL
 
 	if is_equipped:
-		btn.text = "✓  EQUIPAGGIATO"
+		btn.text     = "✓  EQUIPAGGIATO"
 		btn.add_theme_color_override("font_color", Color.WHITE)
 		btn.add_theme_stylebox_override("normal",
 			_mk_style(Color(0.10, 0.40, 0.10, 0.85), Color.WHITE, 8, 2))
 		btn.disabled = true
-	elif affordable:
-		btn.text = "  ψ %d  " % cost
+	elif is_unlocked:
+		# Sbloccato ma non equipaggiato: equipaggia gratis
+		btn.text = "EQUIPAGGIA  →"
+		btn.add_theme_color_override("font_color", slot_col)
+		btn.add_theme_stylebox_override("normal",
+			_mk_style(Color(slot_col.r*0.14, slot_col.g*0.14, slot_col.b*0.14, 0.92),
+				slot_col, 8, 1))
+		btn.add_theme_stylebox_override("hover",
+			_mk_style(Color(slot_col.r*0.22, slot_col.g*0.22, slot_col.b*0.22, 0.95),
+				Color.WHITE, 8, 2))
+		_apply_focus_style(btn, slot_col, 8)
+		var cap_id  := pid
+		var cap_key := slot_key
+		btn.pressed.connect(func(): _buy_power(cap_id, cap_key, 0))
+	elif can_afford:
+		btn.text = "SBLOCCA  ψ %d" % cost
 		btn.add_theme_color_override("font_color", C_GOLD)
 		btn.add_theme_stylebox_override("normal",
 			_mk_style(Color(0.14, 0.11, 0.01, 0.92), C_GOLD, 8, 1))
 		btn.add_theme_stylebox_override("hover",
 			_mk_style(Color(0.22, 0.18, 0.02, 0.95), Color.WHITE, 8, 2))
-		var cap_id  := pid
-		var cap_key := slot_key
+		_apply_focus_style(btn, C_GOLD, 8)
+		var cap_id2  := pid
+		var cap_key2 := slot_key
 		var cap_cost := cost
-		btn.pressed.connect(func(): _buy_power(cap_id, cap_key, cap_cost))
+		btn.pressed.connect(func(): _buy_power(cap_id2, cap_key2, cap_cost))
 	else:
-		btn.text    = "  ψ %d  " % cost
-		btn.disabled = true
-		btn.modulate = Color(0.5, 0.5, 0.5, 0.8)
+		btn.text     = "ψ %d" % cost
+		btn.disabled  = true
+		btn.modulate  = Color(0.5, 0.5, 0.5, 0.8)
 
 	vbox.add_child(btn)
 	return pc
 
 
 func _buy_power(power_id: String, slot_key: String, cost: int) -> void:
-	if MetaManager.total_souls < cost:
-		return
-	MetaManager.total_souls -= cost
-	MetaManager.save_progress()
-
+	# Se cost > 0 → prima volta, sblocca permanentemente
+	if cost > 0:
+		if not MetaManager.unlock_power(power_id, cost):
+			return   # souls insufficienti
+	# Equipaggia nello slot (sempre gratis dopo sblocco)
 	var meta_key: String = "active_power_" + slot_key
 	GameManager.set_meta(meta_key, power_id)
-
-	# Forza il ricalcolo delle stats di tutti i giocatori (aggiorna CD massimi)
+	# Forza il ricalcolo delle stats di tutti i giocatori
 	_recalc_all_players()
 	_refresh_souls()
+	_rebuild_grid()
+	_grab_first_focus()
 
-	# Ricostruisce la tab per mostrare il badge EQUIPAGGIATO
+
+# ══════════════════════════════════════════════
+#  Tab Moduli Nave (upgrade permanenti)
+# ══════════════════════════════════════════════
+
+func _rebuild_modules_tab() -> void:
+	var grid := HBoxContainer.new()
+	grid.add_theme_constant_override("separation", 14)
+	grid.set_anchors_preset(Control.PRESET_FULL_RECT)
+	grid.alignment          = BoxContainer.ALIGNMENT_CENTER
+	grid.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_content_area.add_child(grid)
+
+	for mod: Dictionary in MODULE_CATALOG:
+		grid.add_child(_build_module_card(mod))
+
+
+func _build_module_card(mod: Dictionary) -> PanelContainer:
+	var mod_id:    String = mod["id"]
+	var mod_col:   Color  = mod["color"] as Color
+	var max_lv:    int    = mod["max_level"] as int
+	var costs:     Array  = mod["costs"] as Array
+	var cur_level: int    = MetaManager.get_perm_level(mod_id)
+	var maxed:     bool   = cur_level >= max_lv
+	var cost:      int    = 0 if maxed else costs[cur_level] as int
+	var affordable: bool  = maxed or MetaManager.total_souls >= cost
+
+	var pc := PanelContainer.new()
+	pc.custom_minimum_size = Vector2(218, 272)
+	var sty := _mk_style(
+		Color(mod_col.r * 0.07, mod_col.g * 0.06, mod_col.b * 0.04, 0.97),
+		mod_col if affordable else C_DIM, 12, 2 if affordable else 1)
+	sty.content_margin_left   = 14.0
+	sty.content_margin_right  = 14.0
+	sty.content_margin_top    = 12.0
+	sty.content_margin_bottom = 12.0
+	pc.add_theme_stylebox_override("panel", sty)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 6)
+	pc.add_child(vbox)
+
+	# Header: icona + badge livello
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 6)
+	vbox.add_child(top)
+	top.add_child(_lbl(mod["icon"] as String, 34, mod_col))
+
+	var lv_box := VBoxContainer.new()
+	lv_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lv_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	top.add_child(lv_box)
+
+	# Barra livelli (puntini)
+	var dots_row := HBoxContainer.new()
+	dots_row.add_theme_constant_override("separation", 4)
+	dots_row.alignment = BoxContainer.ALIGNMENT_END
+	lv_box.add_child(dots_row)
+	for i in max_lv:
+		var dot := ColorRect.new()
+		dot.custom_minimum_size = Vector2(14, 14)
+		dot.color = mod_col if i < cur_level else Color(mod_col.r * 0.2, mod_col.g * 0.2, mod_col.b * 0.2, 0.6)
+		dots_row.add_child(dot)
+
+	# Label stato
+	var state_txt := "MAX" if maxed else ("Lv %d / %d" % [cur_level, max_lv])
+	var state_col := Color(0.20, 1.00, 0.40) if maxed else (mod_col if cur_level > 0 else C_DIM)
+	var state_lbl := _lbl(state_txt, 12, state_col)
+	state_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	lv_box.add_child(state_lbl)
+
+	# Nome
+	vbox.add_child(_lbl(mod["name"] as String, 16, mod_col, 1, Color(0, 0, 0, 0.7)))
+
+	# Descrizione
+	var desc_lbl := _lbl(mod["desc"] as String, 13, C_HI)
+	desc_lbl.autowrap_mode       = TextServer.AUTOWRAP_WORD_SMART
+	desc_lbl.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vbox.add_child(desc_lbl)
+
+	# Badge PERMANENTE
+	var perm_lbl := _lbl("⭐ PERMANENTE", 12, Color(mod_col.r, mod_col.g, mod_col.b, 0.70))
+	vbox.add_child(perm_lbl)
+
+	# Bottone acquisto/upgrade
+	var btn := Button.new()
+	btn.add_theme_font_size_override("font_size", 15)
+	btn.custom_minimum_size = Vector2(0, 40)
+	btn.focus_mode          = Control.FOCUS_ALL
+
+	if maxed:
+		btn.text = "✓  AL MASSIMO"
+		btn.add_theme_color_override("font_color", Color(0.20, 1.00, 0.40))
+		btn.add_theme_stylebox_override("normal",
+			_mk_style(Color(0.04, 0.18, 0.04, 0.85), Color(0.20, 1.00, 0.40), 8, 1))
+		btn.disabled = true
+	elif affordable:
+		var lbl_txt := ("ψ %d  SBLOCCA" % cost) if cur_level == 0 else ("ψ %d  UPGRADE" % cost)
+		btn.text = lbl_txt
+		btn.add_theme_color_override("font_color", C_GOLD)
+		btn.add_theme_stylebox_override("normal",
+			_mk_style(Color(0.14, 0.11, 0.01, 0.92), C_GOLD, 8, 1))
+		btn.add_theme_stylebox_override("hover",
+			_mk_style(Color(0.22, 0.18, 0.02, 0.95), Color.WHITE, 8, 2))
+		_apply_focus_style(btn, mod_col, 8)
+		var cap_id   := mod_id
+		var cap_cost := cost
+		btn.pressed.connect(func(): _buy_module(cap_id, cap_cost))
+	else:
+		btn.text     = "ψ %d" % cost
+		btn.disabled  = true
+		btn.modulate  = Color(0.5, 0.5, 0.5, 0.8)
+
+	vbox.add_child(btn)
+	return pc
+
+
+func _buy_module(mod_id: String, cost: int) -> void:
+	if not MetaManager.buy_perm_upgrade(mod_id, cost):
+		return
+	MetaManager.save_progress()
+	_refresh_souls()
+	# Notifica i player di ricaricare i moduli
+	for p: Node in get_tree().get_nodes_in_group("players"):
+		if p.has_method("apply_modules"):
+			p.apply_modules()
+	_rebuild_grid()
+	_grab_first_focus()
+
+
+# ══════════════════════════════════════════════
+#  Tab Skin Navicella (acquisto + selezione permanente)
+# ══════════════════════════════════════════════
+
+func _rebuild_skins_tab() -> void:
+	var grid := HBoxContainer.new()
+	grid.add_theme_constant_override("separation", 14)
+	grid.set_anchors_preset(Control.PRESET_FULL_RECT)
+	grid.alignment          = BoxContainer.ALIGNMENT_CENTER
+	grid.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_content_area.add_child(grid)
+
+	for skin: Dictionary in SKIN_CATALOG:
+		grid.add_child(_build_skin_card(skin))
+
+
+func _build_skin_card(skin: Dictionary) -> PanelContainer:
+	var skin_id:     String = skin["id"]
+	var skin_col:    Color  = skin["color"] as Color
+	var cost:        int    = skin["cost"] as int
+	var is_selected: bool   = (MetaManager.selected_skin == skin_id)
+	var is_unlocked: bool   = MetaManager.is_skin_unlocked(skin_id)
+	var can_afford:  bool   = is_unlocked or MetaManager.total_souls >= cost
+	var active:      bool   = is_selected or is_unlocked or can_afford
+
+	var pc := PanelContainer.new()
+	pc.custom_minimum_size = Vector2(218, 272)
+	var sty := _mk_style(
+		Color(skin_col.r * 0.07, skin_col.g * 0.06, skin_col.b * 0.04, 0.97),
+		skin_col if active else C_DIM, 12, 3 if is_selected else (2 if active else 1))
+	sty.content_margin_left   = 14.0
+	sty.content_margin_right  = 14.0
+	sty.content_margin_top    = 12.0
+	sty.content_margin_bottom = 12.0
+	pc.add_theme_stylebox_override("panel", sty)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 6)
+	pc.add_child(vbox)
+
+	# Header: icona + badge stato
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 6)
+	vbox.add_child(top)
+	top.add_child(_lbl(skin["icon"] as String, 36, skin_col))
+
+	var badge_txt: String
+	if is_selected:
+		badge_txt = "✓ ATTIVA"
+	elif is_unlocked:
+		badge_txt = "🔓 SBLOCCATA"
+	else:
+		badge_txt = "🔒 ψ %d" % cost
+	var badge_col := Color.WHITE if is_selected else (C_GREEN if is_unlocked else C_GOLD)
+	var badge_lbl := _lbl(badge_txt, 12, badge_col)
+	badge_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	badge_lbl.horizontal_alignment  = HORIZONTAL_ALIGNMENT_RIGHT
+	badge_lbl.vertical_alignment    = VERTICAL_ALIGNMENT_BOTTOM
+	top.add_child(badge_lbl)
+
+	# Nome
+	vbox.add_child(_lbl(skin["name"] as String, 17, skin_col, 1, Color(0, 0, 0, 0.7)))
+
+	# Descrizione
+	var desc_lbl := _lbl(skin["desc"] as String, 13, C_HI)
+	desc_lbl.autowrap_mode       = TextServer.AUTOWRAP_WORD_SMART
+	desc_lbl.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vbox.add_child(desc_lbl)
+
+	# Badge PERMANENTE
+	var perm_lbl := _lbl("⭐ PERMANENTE", 12, Color(skin_col.r, skin_col.g, skin_col.b, 0.65))
+	vbox.add_child(perm_lbl)
+
+	# Bottone
+	var btn := Button.new()
+	btn.add_theme_font_size_override("font_size", 15)
+	btn.custom_minimum_size = Vector2(0, 40)
+	btn.focus_mode          = Control.FOCUS_ALL
+
+	if is_selected:
+		btn.text = "✓  IN USO"
+		btn.add_theme_color_override("font_color", Color.WHITE)
+		btn.add_theme_stylebox_override("normal",
+			_mk_style(Color(0.10, 0.40, 0.10, 0.85), Color.WHITE, 8, 2))
+		btn.disabled = true
+	elif is_unlocked:
+		# Sbloccata, seleziona gratis
+		btn.text = "SELEZIONA  →"
+		btn.add_theme_color_override("font_color", skin_col)
+		btn.add_theme_stylebox_override("normal",
+			_mk_style(Color(skin_col.r*0.14, skin_col.g*0.14, skin_col.b*0.14, 0.92),
+				skin_col, 8, 1))
+		btn.add_theme_stylebox_override("hover",
+			_mk_style(Color(skin_col.r*0.22, skin_col.g*0.22, skin_col.b*0.22, 0.95),
+				Color.WHITE, 8, 2))
+		_apply_focus_style(btn, skin_col, 8)
+		var cap_id   := skin_id
+		var cap_cost := 0
+		btn.pressed.connect(func(): _buy_equip_skin(cap_id, cap_cost))
+	elif can_afford:
+		btn.text = "ACQUISTA  ψ %d" % cost
+		btn.add_theme_color_override("font_color", C_GOLD)
+		btn.add_theme_stylebox_override("normal",
+			_mk_style(Color(0.14, 0.11, 0.01, 0.92), C_GOLD, 8, 1))
+		btn.add_theme_stylebox_override("hover",
+			_mk_style(Color(0.22, 0.18, 0.02, 0.95), Color.WHITE, 8, 2))
+		_apply_focus_style(btn, C_GOLD, 8)
+		var cap_id2   := skin_id
+		var cap_cost2 := cost
+		btn.pressed.connect(func(): _buy_equip_skin(cap_id2, cap_cost2))
+	else:
+		btn.text     = "ψ %d" % cost
+		btn.disabled  = true
+		btn.modulate  = Color(0.5, 0.5, 0.5, 0.8)
+
+	vbox.add_child(btn)
+	return pc
+
+
+func _buy_equip_skin(skin_id: String, cost: int) -> void:
+	if not MetaManager.unlock_and_select_skin(skin_id, cost):
+		return   # souls insufficienti
+	_refresh_souls()
 	_rebuild_grid()
 	_grab_first_focus()
 
@@ -610,7 +1092,7 @@ func _build_item_card(item: Dictionary) -> PanelContainer:
 	var affordable: bool = MetaManager.total_souls >= cost
 
 	var pc := PanelContainer.new()
-	pc.custom_minimum_size = Vector2(188, 215)
+	pc.custom_minimum_size = Vector2(204, 250)
 
 	var sty := _mk_style(
 		Color(col.r * 0.08, col.g * 0.08, col.b * 0.08, 0.97),
@@ -630,9 +1112,9 @@ func _build_item_card(item: Dictionary) -> PanelContainer:
 	top_row.add_theme_constant_override("separation", 6)
 	vbox.add_child(top_row)
 
-	top_row.add_child(_lbl(item["icon"], 32, col))
+	top_row.add_child(_lbl(item["icon"], 36, col))
 
-	var rar_lbl := _lbl(rarity.to_upper(), 9, col)
+	var rar_lbl := _lbl(rarity.to_upper(), 12, col)
 	rar_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	rar_lbl.horizontal_alignment  = HORIZONTAL_ALIGNMENT_RIGHT
 	rar_lbl.vertical_alignment    = VERTICAL_ALIGNMENT_BOTTOM
@@ -640,18 +1122,18 @@ func _build_item_card(item: Dictionary) -> PanelContainer:
 
 	# Nome
 	var name_col := col if affordable else C_DIM
-	vbox.add_child(_lbl(item["name"], 14, name_col, 1, Color(0, 0, 0, 0.7)))
+	vbox.add_child(_lbl(item["name"], 16, name_col, 1, Color(0, 0, 0, 0.7)))
 
 	# Descrizione
-	var desc := _lbl(item["desc"], 11, C_HI)
+	var desc := _lbl(item["desc"], 13, C_HI)
 	desc.autowrap_mode       = TextServer.AUTOWRAP_WORD_SMART
 	desc.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	vbox.add_child(desc)
 
 	# Bottone acquisto
 	var btn := Button.new()
-	btn.add_theme_font_size_override("font_size", 14)
-	btn.custom_minimum_size = Vector2(0, 36)
+	btn.add_theme_font_size_override("font_size", 15)
+	btn.custom_minimum_size = Vector2(0, 40)
 
 	var captured := item
 	if affordable:
@@ -666,6 +1148,7 @@ func _build_item_card(item: Dictionary) -> PanelContainer:
 		btn.add_theme_stylebox_override("pressed",
 			_mk_style(btn_hov, Color.WHITE, 8, 1))
 		btn.focus_mode = Control.FOCUS_ALL
+		_apply_focus_style(btn, C_GOLD, 8)
 		btn.pressed.connect(func(): _buy(captured))
 	else:
 		btn.text    = "  ψ %d  " % cost
@@ -694,6 +1177,8 @@ func _buy(item: Dictionary) -> void:
 		_rebuild_grid()
 
 	_refresh_souls()
+	# Dopo l'acquisto i bottoni vengono ricreati → ri-dai il focus al primo disponibile
+	_grab_first_focus()
 
 
 func _apply_effect(fx: String, val: float) -> void:
@@ -773,6 +1258,17 @@ func _update_title() -> void:
 #  Helper UI
 # ══════════════════════════════════════════════
 
+## Applica uno stile focus ben visibile al bottone: bordo bianco spesso + bg leggermente acceso.
+## Chiamato su OGNI bottone interattivo perché Godot 4 con stili custom non mostra il focus di default.
+func _apply_focus_style(btn: Button, accent: Color, radius: int = 8) -> void:
+	var focus_bg := Color(accent.r * 0.22, accent.g * 0.22, accent.b * 0.22, 0.98)
+	var s := _mk_style(focus_bg, Color.WHITE, radius, 3)
+	# Shadow neon colorata per risaltare su sfondo scuro
+	s.shadow_color = Color(accent.r, accent.g, accent.b, 0.55)
+	s.shadow_size  = 6
+	btn.add_theme_stylebox_override("focus", s)
+
+
 func _mk_style(bg: Color, border: Color, radius: int, border_w: int) -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
 	s.bg_color            = bg
@@ -815,4 +1311,5 @@ func _action_btn(txt: String, col: Color) -> Button:
 	btn.add_theme_stylebox_override("normal",  _mk_style(bg,  col, 10, 2))
 	btn.add_theme_stylebox_override("hover",   _mk_style(hov, col, 10, 3))
 	btn.add_theme_stylebox_override("pressed", _mk_style(hov, Color.WHITE, 10, 2))
+	_apply_focus_style(btn, col, 10)
 	return btn

@@ -211,6 +211,8 @@ const XP_SCALE := 1.3
 # ---------------------------------------------------------------------------
 var total_souls: int = 0               ## Souls spendibili (valuta talenti)
 var total_souls_ever: int = 0          ## Souls guadagnati lifetime (per unlock)
+var best_wave: int = 0                 ## Wave massima raggiunta in qualsiasi run
+var best_wave_hardcore: int = 0        ## Wave massima in modalità Hardcore
 
 var character_levels: Dictionary = {}  ## char_id → livello (int)
 var character_xp: Dictionary = {}      ## char_id → xp corrente (int)
@@ -224,6 +226,10 @@ var runs_per_character: Dictionary = {}  ## char_id → n° run completate
 ## Upgrade permanenti acquistati nello shop post-run
 ## Struttura: { "perm_hp": 3, "perm_dmg": 1, ... }  (count acquisti, cumulabili)
 var perm_upgrades: Dictionary = {}
+
+var selected_skin:   String = "default"       ## Skin navicella attiva
+var unlocked_skins:  Array  = ["default"]     ## Skin sbloccate permanentemente
+var unlocked_powers: Array  = []              ## Power-id sbloccati permanentemente (una-tantum)
 
 # ---------------------------------------------------------------------------
 # STATO RUNTIME (non salvato)
@@ -252,6 +258,10 @@ func _init_defaults() -> void:
 	# Void Sentinel sempre sbloccato
 	if "void_sentinel" not in unlocked_characters:
 		unlocked_characters.append("void_sentinel")
+
+	# Skin default sempre disponibile
+	if "default" not in unlocked_skins:
+		unlocked_skins.append("default")
 
 
 # ---------------------------------------------------------------------------
@@ -301,8 +311,19 @@ func on_run_complete(_success: bool, wave_reached: int, kills: int) -> void:
 	## Chiamato da GameManager.end_game()
 	runs_per_character[selected_character] = runs_per_character.get(selected_character, 0) + 1
 
-	# Formula: kills × 2 + wave × 10
+	# Aggiorna record personale wave
+	if wave_reached > best_wave:
+		best_wave = wave_reached
+	# Aggiorna record Hardcore separato
+	var gm := get_node_or_null("/root/GameManager")
+	if gm and gm.get("game_mode") == "hardcore":
+		if wave_reached > best_wave_hardcore:
+			best_wave_hardcore = wave_reached
+
+	# Formula: kills × 2 + wave × 10 (+50% bonus in Hardcore)
 	var souls_earned := kills * 2 + wave_reached * 10
+	if gm and gm.get("game_mode") == "hardcore":
+		souls_earned = int(souls_earned * 1.5)
 	gain_xp(selected_character, souls_earned)
 
 	# Controlla sblocchi
@@ -313,6 +334,11 @@ func on_run_complete(_success: bool, wave_reached: int, kills: int) -> void:
 	entropy_kill_bonus = 0.0
 
 	save_progress()
+
+
+## True se la modalità Hardcore è sbloccata
+func is_hardcore_unlocked() -> bool:
+	return total_souls_ever >= 500 or best_wave >= 8
 
 
 func _check_unlocks(wave_reached: int) -> void:
@@ -487,6 +513,8 @@ func save_progress() -> void:
 	var data := {
 		"total_souls":        total_souls,
 		"total_souls_ever":   total_souls_ever,
+		"best_wave":           best_wave,
+		"best_wave_hardcore":  best_wave_hardcore,
 		"character_levels":   character_levels,
 		"character_xp":       character_xp,
 		"unlocked_characters": unlocked_characters,
@@ -494,6 +522,9 @@ func save_progress() -> void:
 		"selected_character": selected_character,
 		"runs_per_character": runs_per_character,
 		"perm_upgrades":      perm_upgrades,
+		"selected_skin":      selected_skin,
+		"unlocked_skins":     unlocked_skins,
+		"unlocked_powers":    unlocked_powers,
 	}
 
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
@@ -526,6 +557,8 @@ func load_progress() -> void:
 
 	total_souls          = parsed.get("total_souls", 0)
 	total_souls_ever     = parsed.get("total_souls_ever", 0)
+	best_wave            = parsed.get("best_wave", 0)
+	best_wave_hardcore   = parsed.get("best_wave_hardcore", 0)
 	character_levels     = parsed.get("character_levels", {})
 	character_xp         = parsed.get("character_xp", {})
 	unlocked_characters  = Array(parsed.get("unlocked_characters", []))
@@ -533,6 +566,9 @@ func load_progress() -> void:
 	selected_character   = parsed.get("selected_character", "void_sentinel")
 	runs_per_character   = parsed.get("runs_per_character", {})
 	perm_upgrades        = parsed.get("perm_upgrades", {})
+	selected_skin        = parsed.get("selected_skin",    "default")
+	unlocked_skins       = Array(parsed.get("unlocked_skins",  ["default"]))
+	unlocked_powers      = Array(parsed.get("unlocked_powers", []))
 
 	_init_defaults()
 
@@ -563,3 +599,53 @@ func reset_all_progress() -> void:
 	runs_per_character  = {}
 	_init_defaults()
 	save_progress()
+
+
+# ---------------------------------------------------------------------------
+# SKIN NAVICELLA
+# ---------------------------------------------------------------------------
+
+## Sblocca (se necessario) e seleziona una skin. Ritorna false se non si hanno souls.
+func unlock_and_select_skin(skin_id: String, cost: int) -> bool:
+	if skin_id not in unlocked_skins:
+		if total_souls < cost:
+			return false
+		total_souls -= cost
+		unlocked_skins.append(skin_id)
+	selected_skin = skin_id
+	save_progress()
+	return true
+
+
+## Seleziona una skin già sbloccata (gratis).
+func select_skin(skin_id: String) -> void:
+	if skin_id in unlocked_skins:
+		selected_skin = skin_id
+		save_progress()
+
+
+## True se la skin è già sbloccata.
+func is_skin_unlocked(skin_id: String) -> bool:
+	return skin_id in unlocked_skins
+
+
+# ---------------------------------------------------------------------------
+# POTERI Q/E  (sblocco permanente una-tantum)
+# ---------------------------------------------------------------------------
+
+## Sblocca un potere pagando una sola volta. Ritorna true se ha già il potere o se
+## l'acquisto va a buon fine. Ritorna false se non bastano i souls.
+func unlock_power(power_id: String, cost: int) -> bool:
+	if power_id in unlocked_powers:
+		return true   # già sbloccato, equipaggiare è gratis
+	if total_souls < cost:
+		return false
+	total_souls -= cost
+	unlocked_powers.append(power_id)
+	save_progress()
+	return true
+
+
+## True se il potere è stato sbloccato almeno una volta.
+func is_power_unlocked(power_id: String) -> bool:
+	return power_id in unlocked_powers

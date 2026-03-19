@@ -272,9 +272,10 @@ func _play_flash(synergy_name: String, col: Color) -> void:
 	sub.offset_left = -250
 	sub.offset_right = 250
 	sub.add_theme_font_size_override("font_size", 16)
-	sub.add_theme_color_override("font_color", Color(0.85, 0.85, 1.0, 0.0))
+	# FIX: alpha era 0.0 → testo invisibile, restava solo il contorno nero
+	sub.add_theme_color_override("font_color", Color(0.85, 0.85, 1.0, 1.0))
 	sub.add_theme_constant_override("outline_size", 3)
-	sub.add_theme_color_override("font_outline_color", Color.BLACK)
+	sub.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.15, 0.85))
 	_flash_layer.add_child(sub)
 
 	# animazione

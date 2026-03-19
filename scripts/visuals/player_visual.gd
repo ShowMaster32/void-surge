@@ -47,6 +47,7 @@ var _plasma_ring_a: float = 0.0
 
 var _orb_data:  Array = []   # Array di {color: Color, element: String}
 var _synergies: Array = []   # Array di String  e.g. ["fire_build"]
+var _skin_id:   String = "default"   # skin navicella attiva
 
 
 func _process(delta: float) -> void:
@@ -61,6 +62,10 @@ func _process(delta: float) -> void:
 	else:
 		_orb_data  = []
 		_synergies = []
+
+	var mm := get_node_or_null("/root/MetaManager")
+	if mm and "selected_skin" in mm:
+		_skin_id = mm.selected_skin as String
 
 	queue_redraw()
 
@@ -111,57 +116,27 @@ func _draw() -> void:
 	if "plasma_build" in _synergies:
 		_draw_plasma_rings(s)
 
-	# ── ali ───────────────────────────────────────────────────────────────────
-	var wing_t := PackedVector2Array([
-		Vector2(-s * 0.08, -s * 0.50),
-		Vector2( s * 0.28, -s * 0.50),
-		Vector2( s * 0.06, -s * 0.94),
-		Vector2(-s * 0.36, -s * 0.72),
-	])
-	var wing_b := PackedVector2Array([
-		Vector2(-s * 0.08,  s * 0.50),
-		Vector2( s * 0.28,  s * 0.50),
-		Vector2( s * 0.06,  s * 0.94),
-		Vector2(-s * 0.36,  s * 0.72),
-	])
-	draw_colored_polygon(wing_t, Color(0.48, 0.48, 0.56))
-	draw_colored_polygon(wing_b, Color(0.48, 0.48, 0.56))
-	draw_polyline(PackedVector2Array([wing_t[0], wing_t[1], wing_t[2], wing_t[3], wing_t[0]]),
-		Color(1.0, 1.0, 1.0, 0.55), 1.0)
-	draw_polyline(PackedVector2Array([wing_b[0], wing_b[1], wing_b[2], wing_b[3], wing_b[0]]),
-		Color(1.0, 1.0, 1.0, 0.55), 1.0)
+	# ── ali + scafo (skin-dipendente) ─────────────────────────────────────────
+	var _sp: Dictionary = _draw_hull_section(s)
 
-	# ── punte fiamma (FIRE synergy, sopra le ali) ─────────────────────────────
+	# ── punte fiamma (FIRE synergy) ────────────────────────────────────────────
 	if "fire_build" in _synergies:
 		_draw_fire_tips(s)
 
-	# ── scafo principale ──────────────────────────────────────────────────────
-	var hull := PackedVector2Array([
-		Vector2( s,          0.0),
-		Vector2( s * 0.22,  -s * 0.52),
-		Vector2(-s * 0.62,  -s * 0.40),
-		Vector2(-s * 0.88,   0.0),
-		Vector2(-s * 0.62,   s * 0.40),
-		Vector2( s * 0.22,   s * 0.52),
-	])
-	draw_colored_polygon(hull, Color(0.68, 0.68, 0.74))
-	draw_polyline(
-		PackedVector2Array([hull[0], hull[1], hull[2], hull[3], hull[4], hull[5], hull[0]]),
-		Color(1.0, 1.0, 1.0, 0.88), 1.5
-	)
-
-	# ── stud dorati CHAOS (sopra lo scafo, prima del cockpit) ────────────────
+	# ── stud dorati CHAOS ──────────────────────────────────────────────────────
 	if "chaos_build" in _synergies:
 		_draw_chaos_studs(s)
 
-	# ── cockpit ───────────────────────────────────────────────────────────────
-	draw_circle(Vector2(s * 0.30, 0.0), s * 0.24, Color(0.42, 0.62, 0.95, 0.88))
-	draw_circle(Vector2(s * 0.30, 0.0), s * 0.13, Color(1.0, 1.0, 1.0, 0.92))
+	# ── cockpit ────────────────────────────────────────────────────────────────
+	var _cp: Vector2 = _sp["cockpit"]
+	draw_circle(_cp, s * 0.24, Color(0.42, 0.62, 0.95, 0.88))
+	draw_circle(_cp, s * 0.13, Color(1.0, 1.0, 1.0, 0.92))
 
-	# ── motore pulsante ───────────────────────────────────────────────────────
+	# ── motore pulsante ────────────────────────────────────────────────────────
+	var _ep: Vector2 = _sp["engine"]
 	var pr := s * 0.22 + sin(_pulse) * s * 0.065
-	draw_circle(Vector2(-s * 0.88, 0.0), pr,        Color(1.0, 0.46, 0.10, 0.82))
-	draw_circle(Vector2(-s * 0.88, 0.0), pr * 0.50, Color(1.0, 0.80, 0.36, 0.96))
+	draw_circle(_ep, pr,        Color(1.0, 0.46, 0.10, 0.82))
+	draw_circle(_ep, pr * 0.50, Color(1.0, 0.80, 0.36, 0.96))
 
 	# ── orb esagonali orbitanti ───────────────────────────────────────────────
 	_draw_orbs(s)
@@ -285,3 +260,108 @@ func _draw_chaos_studs(s: float) -> void:
 			pos + Vector2(-ds * 0.72, 0),
 		]), Color(1.00, 0.82, 0.10, 0.92))
 		draw_circle(pos, ds * 0.40, Color(1.0, 0.96, 0.68, 0.90))
+
+
+# ══════════════════════════════════════════════
+#  SISTEMA SKIN NAVICELLA
+# ══════════════════════════════════════════════
+
+## Disegna ali + scafo della skin attiva. Ritorna {cockpit: Vector2, engine: Vector2}.
+func _draw_hull_section(s: float) -> Dictionary:
+	match _skin_id:
+		"interceptor": return _skin_interceptor(s)
+		"titan":       return _skin_titan(s)
+		"phantom":     return _skin_phantom(s)
+		_:             return _skin_default(s)
+
+
+## Helper: disegna ali (top/bottom) + scafo con i colori passati.
+func _draw_wings_and_hull(
+		wt: PackedVector2Array, wb: PackedVector2Array, wc: Color,
+		hull: PackedVector2Array, hc: Color) -> void:
+	draw_colored_polygon(wt, wc)
+	draw_colored_polygon(wb, wc)
+	draw_polyline(PackedVector2Array([wt[0], wt[1], wt[2], wt[3], wt[0]]),
+		Color(1.0, 1.0, 1.0, 0.55), 1.0)
+	draw_polyline(PackedVector2Array([wb[0], wb[1], wb[2], wb[3], wb[0]]),
+		Color(1.0, 1.0, 1.0, 0.55), 1.0)
+	draw_colored_polygon(hull, hc)
+	var hl := PackedVector2Array(hull)
+	hl.append(hull[0])
+	draw_polyline(hl, Color(1.0, 1.0, 1.0, 0.88), 1.5)
+
+
+## ── Skin default (design originale) ──────────────────────────────────────────
+func _skin_default(s: float) -> Dictionary:
+	var wt := PackedVector2Array([
+		Vector2(-s * 0.08, -s * 0.50), Vector2( s * 0.28, -s * 0.50),
+		Vector2( s * 0.06, -s * 0.94), Vector2(-s * 0.36, -s * 0.72),
+	])
+	var wb := PackedVector2Array([
+		Vector2(-s * 0.08,  s * 0.50), Vector2( s * 0.28,  s * 0.50),
+		Vector2( s * 0.06,  s * 0.94), Vector2(-s * 0.36,  s * 0.72),
+	])
+	var hull := PackedVector2Array([
+		Vector2( s,         0.0),      Vector2( s * 0.22, -s * 0.52),
+		Vector2(-s * 0.62, -s * 0.40), Vector2(-s * 0.88,  0.0),
+		Vector2(-s * 0.62,  s * 0.40), Vector2( s * 0.22,  s * 0.52),
+	])
+	_draw_wings_and_hull(wt, wb, Color(0.48, 0.48, 0.56), hull, Color(0.68, 0.68, 0.74))
+	return {"cockpit": Vector2(s * 0.30, 0.0), "engine": Vector2(-s * 0.88, 0.0)}
+
+
+## ── Skin interceptor (caccia aerodinamico, nose lungo, ali swept-back) ────────
+func _skin_interceptor(s: float) -> Dictionary:
+	var wt := PackedVector2Array([
+		Vector2( s * 0.05, -s * 0.38), Vector2( s * 0.40, -s * 0.38),
+		Vector2(-s * 0.22, -s * 1.08), Vector2(-s * 0.58, -s * 0.52),
+	])
+	var wb := PackedVector2Array([
+		Vector2( s * 0.05,  s * 0.38), Vector2( s * 0.40,  s * 0.38),
+		Vector2(-s * 0.22,  s * 1.08), Vector2(-s * 0.58,  s * 0.52),
+	])
+	var hull := PackedVector2Array([
+		Vector2( s * 1.10,  0.0),      Vector2( s * 0.10, -s * 0.36),
+		Vector2(-s * 0.60, -s * 0.28), Vector2(-s * 0.88,  0.0),
+		Vector2(-s * 0.60,  s * 0.28), Vector2( s * 0.10,  s * 0.36),
+	])
+	_draw_wings_and_hull(wt, wb, Color(0.35, 0.40, 0.52), hull, Color(0.52, 0.58, 0.72))
+	return {"cockpit": Vector2(s * 0.50, 0.0), "engine": Vector2(-s * 0.88, 0.0)}
+
+
+## ── Skin titan (incrociatore pesante, scafo largo, ali massive) ───────────────
+func _skin_titan(s: float) -> Dictionary:
+	var wt := PackedVector2Array([
+		Vector2(-s * 0.05, -s * 0.72), Vector2( s * 0.42, -s * 0.72),
+		Vector2( s * 0.12, -s * 1.30), Vector2(-s * 0.55, -s * 0.95),
+	])
+	var wb := PackedVector2Array([
+		Vector2(-s * 0.05,  s * 0.72), Vector2( s * 0.42,  s * 0.72),
+		Vector2( s * 0.12,  s * 1.30), Vector2(-s * 0.55,  s * 0.95),
+	])
+	var hull := PackedVector2Array([
+		Vector2( s * 0.75,  0.0),      Vector2( s * 0.38, -s * 0.75),
+		Vector2(-s * 0.38, -s * 0.70), Vector2(-s * 1.00,  0.0),
+		Vector2(-s * 0.38,  s * 0.70), Vector2( s * 0.38,  s * 0.75),
+	])
+	_draw_wings_and_hull(wt, wb, Color(0.55, 0.52, 0.45), hull, Color(0.72, 0.68, 0.58))
+	return {"cockpit": Vector2(s * 0.22, 0.0), "engine": Vector2(-s * 1.00, 0.0)}
+
+
+## ── Skin phantom (stealth puro, rombo sottile, profilo minimo) ────────────────
+func _skin_phantom(s: float) -> Dictionary:
+	var wt := PackedVector2Array([
+		Vector2( s * 0.22, -s * 0.24), Vector2( s * 0.68, -s * 0.24),
+		Vector2( s * 0.18, -s * 1.18), Vector2(-s * 0.44, -s * 0.56),
+	])
+	var wb := PackedVector2Array([
+		Vector2( s * 0.22,  s * 0.24), Vector2( s * 0.68,  s * 0.24),
+		Vector2( s * 0.18,  s * 1.18), Vector2(-s * 0.44,  s * 0.56),
+	])
+	var hull := PackedVector2Array([
+		Vector2( s * 1.28,  0.0),      Vector2( s * 0.05, -s * 0.22),
+		Vector2(-s * 0.78, -s * 0.18), Vector2(-s * 1.05,  0.0),
+		Vector2(-s * 0.78,  s * 0.18), Vector2( s * 0.05,  s * 0.22),
+	])
+	_draw_wings_and_hull(wt, wb, Color(0.22, 0.22, 0.30), hull, Color(0.28, 0.28, 0.36))
+	return {"cockpit": Vector2(s * 0.62, 0.0), "engine": Vector2(-s * 1.05, 0.0)}

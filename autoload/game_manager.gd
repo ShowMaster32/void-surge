@@ -16,6 +16,9 @@ var total_kills: int = 0
 var total_damage_dealt: float = 0.0
 var current_wave: int = 1
 
+## Modalità di gioco: "standard" o "hardcore"
+var game_mode: String = "standard"
+
 # Player references per co-op
 var players: Array[Node2D] = []
 var player_count: int = 1

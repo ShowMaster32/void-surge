@@ -28,6 +28,7 @@ var showing_controls: bool = false
 func _ready() -> void:
 	visible = false
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	set_process_unhandled_input(true)
 
 	GameManager.game_paused.connect(_on_game_paused)
 
@@ -51,6 +52,41 @@ func _ready() -> void:
 		settings_panel.visible = false
 	if controls_panel:
 		controls_panel.visible = false
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not is_paused:
+		return
+	if not (event is InputEventJoypadButton):
+		return
+	var jb := event as InputEventJoypadButton
+	if not jb.pressed:
+		return
+	match jb.button_index:
+		JOY_BUTTON_START:
+			# Start riprende il gioco (toggles pause)
+			get_viewport().set_input_as_handled()
+			if showing_settings:
+				_on_back_pressed()
+			elif showing_controls:
+				_on_controls_back_pressed()
+			else:
+				_on_resume_pressed()
+		JOY_BUTTON_B:
+			# B/○ = back (o riprende se nel pannello principale)
+			get_viewport().set_input_as_handled()
+			if showing_settings:
+				_on_back_pressed()
+			elif showing_controls:
+				_on_controls_back_pressed()
+			else:
+				_on_resume_pressed()
+		JOY_BUTTON_A:
+			# A/X = conferma il bottone attualmente in focus
+			get_viewport().set_input_as_handled()
+			var focused := get_viewport().gui_get_focus_owner()
+			if focused is Button and not (focused as Button).disabled:
+				(focused as Button).pressed.emit()
 
 
 func _on_game_paused(paused: bool) -> void:

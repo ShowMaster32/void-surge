@@ -50,22 +50,33 @@ func _setup_controller_ui_actions() -> void:
 
 func _on_joy_connection_changed(device_id: int, connected: bool) -> void:
 	if connected:
-		for player_id in range(4):
-			if player_id not in player_to_device.values() or player_id == 0:
-				if player_id == 0 and KEYBOARD_MOUSE_DEVICE in device_to_player:
-					continue
-				assign_device_to_player(device_id, player_id)
-				break
+		# Single-player: se P0 usa ancora keyboard/mouse, riassegnalo al controller
+		if player_to_device.get(0) == KEYBOARD_MOUSE_DEVICE:
+			assign_device_to_player(device_id, 0)
+		else:
+			# Multiplayer: cerca il primo slot libero
+			for pid in range(4):
+				if pid not in player_to_device:
+					assign_device_to_player(device_id, pid)
+					break
 		controller_connected.emit(device_id)
 	else:
 		if device_id in device_to_player:
 			var player_id: int = device_to_player[device_id]
 			device_to_player.erase(device_id)
 			player_to_device.erase(player_id)
+			# Se era P0, ripristina keyboard+mouse
+			if player_id == 0:
+				assign_device_to_player(KEYBOARD_MOUSE_DEVICE, 0)
 		controller_disconnected.emit(device_id)
 
 
 func assign_device_to_player(device_id: int, player_id: int) -> void:
+	# Rimuovi eventuali mappature precedenti per evitare duplicati
+	if device_id in device_to_player:
+		player_to_device.erase(device_to_player[device_id])
+	if player_id in player_to_device:
+		device_to_player.erase(player_to_device[player_id])
 	device_to_player[device_id] = player_id
 	player_to_device[player_id] = device_id
 
@@ -123,11 +134,17 @@ func get_aim_vector(player_id: int, player_position: Vector2) -> Vector2:
 func is_shooting(player_id: int) -> bool:
 	var device_id: int = player_to_device.get(player_id, KEYBOARD_MOUSE_DEVICE)
 
+	# Fallback: se P0 è ancora keyboard/mouse ma c'è un controller connesso, usalo
+	if device_id == KEYBOARD_MOUSE_DEVICE:
+		var pads := Input.get_connected_joypads()
+		if not pads.is_empty():
+			device_id = pads[0]
+
 	if device_id == KEYBOARD_MOUSE_DEVICE:
 		return Input.is_action_pressed("shoot")
 	else:
-		return Input.is_joy_button_pressed(device_id, JOY_BUTTON_RIGHT_SHOULDER) \
-			or Input.get_joy_axis(device_id, JOY_AXIS_TRIGGER_RIGHT) > 0.5
+		# R2 / RT = grilletto destro (JOY_AXIS_TRIGGER_RIGHT)
+		return Input.get_joy_axis(device_id, JOY_AXIS_TRIGGER_RIGHT) > 0.5
 
 
 func is_pause_pressed(player_id: int) -> bool:
