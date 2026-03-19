@@ -99,8 +99,8 @@ func _process(_delta: float) -> void:
 
 	# ── Aggiorna HP bar ──────────────────────────────────────────────────────
 	var ratio := 1.0
-	var hp    := _boss_ref.get("health")
-	var mhp   := _boss_ref.get("max_health")
+	var hp:  Variant = _boss_ref.get("health")
+	var mhp: Variant = _boss_ref.get("max_health")
 	if hp is float and mhp is float and mhp > 0:
 		ratio = clampf(hp / mhp, 0.0, 1.0)
 

@@ -9,14 +9,22 @@ signal health_changed(current: float, max_hp: float)
 signal killed_enemy  ## emesso per tracking Plasma Nova
 
 # Colori neon per co-op
+## Colori neon fissi per P2-P4 in co-op (P1 usa la skin selezionata)
 const PLAYER_COLORS: Array[Color] = [
-	Color(0.0, 1.0, 1.0),  # Cyan   (P1)
+	Color(0.0, 1.0, 1.0),  # Cyan   (P1 — fallback, normalmente sovrascrito da skin)
 	Color(1.0, 0.2, 1.0),  # Magenta(P2)
 	Color(0.2, 1.0, 0.2),  # Verde  (P3)
 	Color(1.0, 1.0, 0.0),  # Giallo (P4)
 ]
 
 @export var player_id: int = 0
+
+## Restituisce il colore attivo del player:
+## P1 usa la skin selezionata in MetaManager; gli altri player usano PLAYER_COLORS.
+func _get_player_color() -> Color:
+	if player_id == 0:
+		return MetaManager.get_active_color()
+	return PLAYER_COLORS[clampi(player_id, 0, 3)]
 
 # Stats base (sovrascritte da apply_meta_stats)
 @export_group("Base Stats")
@@ -68,17 +76,47 @@ const FRICTION      := 900.0
 
 # ── POTERI ATTIVABILI (slot Q + slot E) ───────────────────────────────────────
 const POWER_COOLDOWNS: Dictionary = {
-	"shield_burst": 8.0,
-	"plasma_bomb":  12.0,
-	"void_dash":    6.0,
-	"time_surge":   18.0,
+	# Difensivi (LB / Q)
+	"shield_burst":    8.0,
+	"void_dash":       6.0,
+	"void_shroud":    12.0,
+	"phase_shift":     8.0,
+	"healing_nova":   14.0,
+	"temporal_barrier":18.0,
+	# Offensivi (RB / E)
+	"plasma_bomb":    12.0,
+	"time_surge":     18.0,
+	"death_blossom":  14.0,
+	"singularity":    22.0,
+	"void_storm":     18.0,
+	"chain_nova":     12.0,
 }
+## Poteri validi per ogni slot — usati da _validate_power_slots() per correggere
+## eventuali assegnazioni errate provenienti da sessioni precedenti.
+const DEFENSIVE_POWERS: Array = [
+	"shield_burst", "void_dash", "void_shroud",
+	"phase_shift",  "healing_nova", "temporal_barrier",
+]
+const OFFENSIVE_POWERS: Array = [
+	"plasma_bomb", "time_surge", "death_blossom",
+	"singularity", "void_storm", "chain_nova",
+]
 const POWER_NAMES: Dictionary = {
-	"shield_burst": "Shield Burst",
-	"plasma_bomb":  "Plasma Bomb",
-	"void_dash":    "Void Dash",
-	"time_surge":   "Time Surge",
+	"shield_burst":    "Shield Burst",
+	"void_dash":       "Void Dash",
+	"void_shroud":     "Void Shroud",
+	"phase_shift":     "Phase Shift",
+	"healing_nova":    "Healing Nova",
+	"temporal_barrier":"Temporal Barrier",
+	"plasma_bomb":     "Plasma Bomb",
+	"time_surge":      "Time Surge",
+	"death_blossom":   "Death Blossom",
+	"singularity":     "Singularity",
+	"void_storm":      "Void Storm",
+	"chain_nova":      "Chain Nova",
 }
+## Riduzione danno attiva da Void Shroud (0.0 = nessuna, 0.5 = 50%)
+var _shield_dr: float = 0.0
 # Slot Q (tasto Q / JOY X)
 var _power_q: String    = ""
 var _cd_max_q: float    = 0.0
@@ -131,8 +169,7 @@ var _missile_visual_t: float = 0.0            # oscillazione cosmetica
 func _ready() -> void:
 	add_to_group("players")
 
-	var col := MetaManager.get_active_color() if player_id == 0 \
-		else PLAYER_COLORS[clampi(player_id, 0, 3)]
+	var col := _get_player_color()
 
 	# ── visual moderno: nasconde Sprite2D e usa PlayerVisual ─────────────────
 	if sprite:
@@ -175,6 +212,11 @@ func _ready() -> void:
 		_power_e  = GameManager.get_meta("active_power") as String
 		_cd_max_e = POWER_COOLDOWNS.get(_power_e, 0.0)
 
+	# Corregge eventuali slot scambiati (es. offensivo in Q o difensivo in E)
+	_validate_power_slots()
+	_cd_max_q = POWER_COOLDOWNS.get(_power_q, 0.0)
+	_cd_max_e = POWER_COOLDOWNS.get(_power_e, 0.0)
+
 	if not InputMap.has_action("activate_power_q"):
 		InputMap.add_action("activate_power_q")
 		var ev_q := InputEventKey.new()
@@ -185,6 +227,36 @@ func _ready() -> void:
 		var ev_e := InputEventKey.new()
 		ev_e.keycode = KEY_E
 		InputMap.action_add_event("activate_power_e", ev_e)
+
+
+## Verifica che Q contenga solo poteri difensivi ed E solo offensivi.
+## Se i due slot risultano scambiati (bug da sessioni precedenti), li corregge
+## automaticamente e aggiorna i meta in GameManager.
+func _validate_power_slots() -> void:
+	var q_offensive := not _power_q.is_empty() and _power_q in OFFENSIVE_POWERS
+	var e_defensive := not _power_e.is_empty() and _power_e in DEFENSIVE_POWERS
+
+	if q_offensive and e_defensive:
+		# Entrambi scambiati → swap diretto
+		var tmp := _power_q
+		_power_q  = _power_e
+		_power_e  = tmp
+		GameManager.set_meta("active_power_q", _power_q)
+		GameManager.set_meta("active_power_e", _power_e)
+	elif q_offensive:
+		# Offensivo in Q ma E libero o anch'esso offensivo → sposta in E
+		if _power_e.is_empty() or _power_e in OFFENSIVE_POWERS:
+			_power_e = _power_q
+			GameManager.set_meta("active_power_e", _power_e)
+		_power_q = ""
+		GameManager.set_meta("active_power_q", "")
+	elif e_defensive:
+		# Difensivo in E ma Q libero → sposta in Q
+		if _power_q.is_empty():
+			_power_q = _power_e
+			GameManager.set_meta("active_power_q", _power_q)
+		_power_e = ""
+		GameManager.set_meta("active_power_e", "")
 
 
 ## Disabilita la Camera2D interna se il SplitScreenManager gestisce le camere
@@ -273,6 +345,11 @@ func _recalculate_stats() -> void:
 			_cd_e     = 0.0
 		_cd_max_e = POWER_COOLDOWNS.get(_power_e, 0.0) * (1.0 - _shop_cdr)
 		_cd_e     = minf(_cd_e, _cd_max_e)
+
+	# Corregge slot errati anche durante il ricalcolo runtime (cambio potere in shop)
+	_validate_power_slots()
+	_cd_max_q = POWER_COOLDOWNS.get(_power_q, 0.0) * (1.0 - _shop_cdr)
+	_cd_max_e = POWER_COOLDOWNS.get(_power_e, 0.0) * (1.0 - _shop_cdr)
 
 	# 4. Modificatori arma attiva
 	_weapon_pierce_bonus = 0
@@ -406,17 +483,11 @@ func _get_aim_dir() -> Vector2:
 ## world_half_size definisce il raggio del mondo partendo dal centro (0,0).
 ## Adatta world_half_size nel Inspector alla dimensione reale della tua arena.
 func _clamp_to_world() -> void:
-	## Mantiene il player entro i bordi visibili dello schermo.
-	## Calcola i limiti reali in unità mondo a partire dal viewport e dallo zoom
-	## della Camera2D: così i bordi coincidono esattamente con lo schermo,
-	## indipendentemente dalla risoluzione.
-	var cam := get_node_or_null("Camera2D") as Camera2D
-	var zoom := cam.zoom if cam != null else Vector2(1.5, 1.5)
-	var vp_size := get_viewport().get_visible_rect().size
-	# Margine pari al raggio del collider (16 px) + 4 px sicurezza
+	## Mantiene il player entro i confini del mondo (zone_size / 2).
+	## I bounds vengono esposti da main_controller via GameManager.set_meta.
 	const MARGIN := 20.0
-	var hw := (vp_size.x * 0.5 / zoom.x) - MARGIN
-	var hh := (vp_size.y * 0.5 / zoom.y) - MARGIN
+	var hw := float(GameManager.get_meta("world_half_w", 2380)) - MARGIN
+	var hh := float(GameManager.get_meta("world_half_h", 2380)) - MARGIN
 	global_position.x = clampf(global_position.x, -hw, hw)
 	global_position.y = clampf(global_position.y, -hh, hh)
 
@@ -583,8 +654,8 @@ func take_damage(amount: float) -> void:
 	if is_dead or _invincible:
 		return
 
-	# Riduzione danno da talento sentinel
-	var reduced := amount * (1.0 - _meta_damage_reduction)
+	# Riduzione danno: talento sentinel + Void Shroud attivo
+	var reduced := amount * (1.0 - _meta_damage_reduction) * (1.0 - _shield_dr)
 	current_health = maxf(current_health - reduced, 0.0)
 	health_changed.emit(current_health, max_health)
 
@@ -594,7 +665,7 @@ func take_damage(amount: float) -> void:
 		flash_target.modulate = Color.WHITE
 		await get_tree().create_timer(0.05).timeout
 		if not is_dead and flash_target:
-			flash_target.modulate = PLAYER_COLORS[clampi(player_id, 0, 3)]
+			flash_target.modulate = _get_player_color()
 
 	_invincible = true
 	inv_timer.start()
@@ -643,7 +714,7 @@ func _check_boost_input() -> void:
 			var tw := create_tween()
 			tw.tween_property(vis, "modulate", Color(0.6, 1.0, 2.5, 1.0), 0.05)
 			tw.tween_property(vis, "modulate",
-				PLAYER_COLORS[clampi(player_id, 0, 3)], BOOST_DURATION)
+				_get_player_color(), BOOST_DURATION)
 
 
 # ---------------------------------------------------------------------------
@@ -653,7 +724,7 @@ func _on_coop_synergy_changed(active: bool) -> void:
 	# Effetto visivo: leggero glow quando synergy attiva
 	var vis_target: Node2D = _visual if _visual != null else sprite
 	if vis_target:
-		var base_col := PLAYER_COLORS[clampi(player_id, 0, 3)]
+		var base_col := _get_player_color()
 		vis_target.modulate = base_col.lightened(0.25) if active else base_col
 
 
@@ -753,10 +824,20 @@ func _try_activate_e() -> void:
 
 func _execute_power(power_id: String) -> void:
 	match power_id:
-		"shield_burst": _power_shield_burst()
-		"plasma_bomb":  _power_plasma_bomb()
-		"void_dash":    _power_void_dash()
-		"time_surge":   _power_time_surge()
+		# Difensivi
+		"shield_burst":     _power_shield_burst()
+		"void_dash":        _power_void_dash()
+		"void_shroud":      _power_void_shroud()
+		"phase_shift":      _power_phase_shift()
+		"healing_nova":     _power_healing_nova()
+		"temporal_barrier": _power_temporal_barrier()
+		# Offensivi
+		"plasma_bomb":      _power_plasma_bomb()
+		"time_surge":       _power_time_surge()
+		"death_blossom":    _power_death_blossom()
+		"singularity":      _power_singularity()
+		"void_storm":       _power_void_storm()
+		"chain_nova":       _power_chain_nova()
 
 
 ## Shield Burst — scudo impenetrabile per 1.5 secondi + flash bianco
@@ -769,7 +850,7 @@ func _power_shield_burst() -> void:
 		vis.modulate = Color(1.5, 1.5, 2.5)
 		var tw := create_tween()
 		tw.tween_property(vis, "modulate",
-			PLAYER_COLORS[clampi(player_id, 0, 3)], 1.5)
+			_get_player_color(), 1.5)
 
 	await get_tree().create_timer(1.5).timeout
 	if not is_dead:
@@ -796,9 +877,22 @@ func _power_void_dash() -> void:
 	var dash_dir := _get_aim_dir()
 	if velocity.length_squared() > 10.0:
 		dash_dir = velocity.normalized()
+	# Fallback: se nessun input, scatta in avanti (in base all'ultima direzione nota)
+	if dash_dir.length_squared() < 0.01:
+		dash_dir = _last_aim_dir if _last_aim_dir.length_squared() > 0.01 else Vector2.UP
 
-	velocity   = dash_dir * move_speed * 6.0
+	velocity    = dash_dir * move_speed * 6.0
 	_invincible = true
+
+	# Flash visivo ciano + scia VFX
+	var vis: Node2D = _visual if _visual != null else sprite
+	if vis:
+		var tw := create_tween()
+		tw.tween_property(vis, "modulate", Color(0.3, 1.8, 2.5), 0.05)
+		tw.tween_property(vis, "modulate", _get_player_color(), 0.28)
+	var vfx := get_node_or_null("/root/VFX")
+	if vfx and vfx.has_method("spawn_hit_effect"):
+		vfx.spawn_hit_effect(global_position, Color(0.15, 0.85, 1.0))
 
 	await get_tree().create_timer(0.25).timeout
 	if not is_dead:
@@ -817,6 +911,195 @@ func _power_time_surge() -> void:
 	await get_tree().create_timer(4.0).timeout
 	if GameManager.has_meta("time_surge_active"):
 		GameManager.remove_meta("time_surge_active")
+
+
+## Void Shroud — mantello difensivo: 50% danno ridotto per 4 secondi + aura viola
+func _power_void_shroud() -> void:
+	_shield_dr = 0.5
+	var vis: Node2D = _visual if _visual != null else sprite
+	if vis:
+		var tw := create_tween()
+		tw.tween_property(vis, "modulate", Color(0.6, 0.0, 1.8), 0.18)
+	var vfx := get_node_or_null("/root/VFX")
+	if vfx and vfx.has_method("spawn_death_effect"):
+		vfx.spawn_death_effect(global_position, Color(0.55, 0.0, 1.0))
+	await get_tree().create_timer(4.0).timeout
+	_shield_dr = 0.0
+	if not is_dead:
+		var vis2: Node2D = _visual if _visual != null else sprite
+		if vis2:
+			var tw2 := create_tween()
+			tw2.tween_property(vis2, "modulate",
+				_get_player_color(), 0.4)
+
+
+## Phase Shift — teletrasporto istantaneo 380px nella direzione di mira
+func _power_phase_shift() -> void:
+	var aim      := _get_aim_dir()
+	var dest     := global_position + aim * 380.0
+	var hw       := float(GameManager.get_meta("world_half_w", 2380)) - 30.0
+	var hh       := float(GameManager.get_meta("world_half_h", 2380)) - 30.0
+	dest.x        = clampf(dest.x, -hw, hw)
+	dest.y        = clampf(dest.y, -hh, hh)
+	_invincible   = true
+	var vis: Node2D = _visual if _visual != null else sprite
+	if vis:
+		# Fade-out → teletrasporto → fade-in
+		var tw := create_tween()
+		tw.tween_property(vis, "modulate:a", 0.0, 0.09)
+		tw.tween_callback(func(): global_position = dest)
+		tw.tween_property(vis, "modulate:a", 1.0, 0.14)
+	else:
+		global_position = dest
+	var vfx := get_node_or_null("/root/VFX")
+	if vfx and vfx.has_method("spawn_hit_effect"):
+		vfx.spawn_hit_effect(dest, Color(0.85, 0.15, 1.0))
+	await get_tree().create_timer(0.4).timeout
+	if not is_dead:
+		_invincible = false
+
+
+## Healing Nova — impulso bionico: cura 50 HP + cura i compagni nel raggio 300px
+func _power_healing_nova() -> void:
+	heal(50.0)
+	for ally in get_tree().get_nodes_in_group("players"):
+		if ally != self and global_position.distance_to(ally.global_position) <= 300.0:
+			if ally.has_method("heal"):
+				ally.heal(25.0)
+	var vfx := get_node_or_null("/root/VFX")
+	if vfx and vfx.has_method("spawn_death_effect"):
+		vfx.spawn_death_effect(global_position, Color(0.18, 1.0, 0.4))
+	var vis: Node2D = _visual if _visual != null else sprite
+	if vis:
+		var tw := create_tween()
+		tw.tween_property(vis, "modulate", Color(0.4, 2.0, 0.5), 0.14)
+		tw.tween_property(vis, "modulate",
+			_get_player_color(), 0.55)
+
+
+## Temporal Barrier — congela tutti i nemici per 2.5s con aura criogemica
+func _power_temporal_barrier() -> void:
+	GameManager.set_meta("time_surge_active", true)
+	var vfx := get_node_or_null("/root/VFX")
+	if vfx and vfx.has_method("spawn_death_effect"):
+		vfx.spawn_death_effect(global_position, Color(0.08, 0.75, 1.0))
+	var vis: Node2D = _visual if _visual != null else sprite
+	if vis:
+		var tw := create_tween()
+		tw.tween_property(vis, "modulate", Color(0.4, 1.6, 2.2), 0.18)
+		tw.tween_property(vis, "modulate",
+			_get_player_color(), 2.2)
+	await get_tree().create_timer(2.5).timeout
+	if GameManager.has_meta("time_surge_active"):
+		GameManager.remove_meta("time_surge_active")
+
+
+## Death Blossom — 24 proiettili a 360° attorno alla nave (danno 2.5×)
+func _power_death_blossom() -> void:
+	if not projectile_scene:
+		return
+	var num_shots  := 24
+	var bloom_dmg  := damage * 2.5
+	var sb: Dictionary = GameManager.get_meta("shop_bonuses", {}) as Dictionary
+	var pierce := int(sb.get("pierce_bonus", 0))
+	for i in num_shots:
+		var dir := Vector2.RIGHT.rotated((TAU / num_shots) * i)
+		_spawn_proj(dir, bloom_dmg, pierce, 30.0)
+	var vfx := get_node_or_null("/root/VFX")
+	if vfx and vfx.has_method("spawn_death_effect"):
+		vfx.spawn_death_effect(global_position,
+			_get_player_color())
+
+
+## Singularity — black hole che attira i nemici 2.5s poi esplode per 8× danno
+func _power_singularity() -> void:
+	# Posizione: mouse per P0, direzione stick per gli altri
+	var pull_center: Vector2
+	if player_id == 0:
+		pull_center = get_global_mouse_position()
+	else:
+		pull_center = global_position + _get_aim_dir() * 320.0
+
+	var vfx := get_node_or_null("/root/VFX")
+	if vfx and vfx.has_method("spawn_death_effect"):
+		vfx.spawn_death_effect(pull_center, Color(0.08, 0.0, 0.25))
+
+	# Fase di attrazione (2.5 secondi)
+	var elapsed := 0.0
+	var pull_dur := 2.5
+	while elapsed < pull_dur and not is_dead:
+		var dt := get_process_delta_time()
+		for enemy in get_tree().get_nodes_in_group("enemies"):
+			var e2d := enemy as Node2D
+			if e2d == null or not is_instance_valid(e2d) or not ("velocity" in e2d):
+				continue
+			var pull_dir: Vector2 = (pull_center - e2d.global_position).normalized()
+			var dist: float       = maxf(e2d.global_position.distance_to(pull_center), 40.0)
+			var pull_f: float     = clampf(800.0 / dist, 60.0, 500.0) * 90.0
+			e2d.velocity         += pull_dir * pull_f * dt
+		elapsed += dt
+		await get_tree().process_frame
+
+	# Esplosione finale
+	var aoe_dmg := damage * 8.0
+	for enemy in get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(enemy) and \
+		   enemy.global_position.distance_to(pull_center) <= 320.0:
+			if enemy.has_method("take_damage"):
+				enemy.take_damage(aoe_dmg)
+	if vfx and vfx.has_method("spawn_death_effect"):
+		vfx.spawn_death_effect(pull_center, Color(0.9, 0.2, 1.0))
+
+
+## Void Storm — 5 esplosioni plasma sequenziali in posizioni casuali (4× danno)
+func _power_void_storm() -> void:
+	var storm_dmg  := damage * 4.0
+	var spread_r   := 380.0
+	var blast_r    := 210.0
+	var vfx := get_node_or_null("/root/VFX")
+	for _i in 5:
+		if is_dead:
+			break
+		var offset   := Vector2(randf_range(-spread_r, spread_r),
+								randf_range(-spread_r, spread_r))
+		var bomb_pos := global_position + offset
+		for enemy in get_tree().get_nodes_in_group("enemies"):
+			if is_instance_valid(enemy) and \
+			   enemy.global_position.distance_to(bomb_pos) <= blast_r:
+				if enemy.has_method("take_damage"):
+					enemy.take_damage(storm_dmg)
+		if vfx and vfx.has_method("spawn_death_effect"):
+			vfx.spawn_death_effect(bomb_pos, Color(randf_range(0.7, 1.0),
+												   randf_range(0.2, 0.5), 0.05))
+		await get_tree().create_timer(0.13).timeout
+
+
+## Chain Nova — scarica che si incatena tra i 5 nemici più vicini (danno +50%/salto)
+func _power_chain_nova() -> void:
+	var enemies := get_tree().get_nodes_in_group("enemies")
+	if enemies.is_empty():
+		return
+	enemies.sort_custom(func(a: Node, b: Node) -> bool:
+		return global_position.distance_to(a.global_position) < \
+			   global_position.distance_to(b.global_position))
+	var vfx       := get_node_or_null("/root/VFX")
+	var chain_dmg := damage * 3.0
+	var max_chain := mini(5, enemies.size())
+	for i in max_chain:
+		var enemy: Node = enemies[i]
+		if not is_instance_valid(enemy):
+			break
+		if enemy.has_method("take_damage"):
+			enemy.take_damage(chain_dmg)
+		if vfx and vfx.has_method("spawn_hit_effect"):
+			var chain_col := Color(1.0,
+								   clampf(0.85 - i * 0.15, 0.1, 0.85),
+								   0.05)
+			vfx.spawn_hit_effect(enemy.global_position, chain_col)
+		chain_dmg *= 1.5   # ogni salto fa +50% danno
+		await get_tree().create_timer(0.07).timeout
+		if is_dead:
+			break
 
 
 # ══════════════════════════════════════════════

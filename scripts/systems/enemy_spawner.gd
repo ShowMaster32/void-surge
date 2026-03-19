@@ -182,6 +182,10 @@ func _on_boss_died(_boss: Node = null) -> void:
 	if mm and mm.has_method("gain_souls"):
 		mm.gain_souls(50)
 
+	# In Hardcore: registra il boss kill per sblocchi skin HC-esclusive
+	if GameManager.game_mode == "hardcore" and mm and mm.has_method("on_boss_killed_hc"):
+		mm.on_boss_killed_hc()
+
 	# Avanza alla wave successiva (apre lo shop)
 	_advance_wave()
 

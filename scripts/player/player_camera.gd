@@ -10,7 +10,7 @@ var player_id: int = 0
 ## Velocità di smooth-follow (più alto = più reattivo)
 @export var follow_speed: float = 6.0
 ## Zoom fisso in split screen (leggermente zoomato out rispetto al single player)
-@export var split_zoom: float = 1.5
+@export var split_zoom: float = 1.2
 
 
 func _ready() -> void:

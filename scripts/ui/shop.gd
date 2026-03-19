@@ -59,30 +59,73 @@ const C_SLOT_E := Color(1.00, 0.55, 0.12)   # arancio – slot E
 
 # ── Catalogo poteri acquistabili ───────────────────────────────────────────────
 const POWER_CATALOG: Array = [
+	# ── DIFENSIVI (slot LB) ────────────────────────────────────────────────
 	{
-		"id": "void_dash",    "name": "Void Dash",     "icon": "💨",
-		"desc": "Scatto rapidissimo nella direzione di mira.\nInvincibile per 0.25s durante il dash.",
-		"cd": 6.0,  "cost": 100,
+		"id": "void_dash",       "name": "Void Dash",        "icon": "💨",
+		"desc": "Scatto istantaneo nella direzione di mira.\nInvincibile per 0.25s durante il dash.",
+		"cd": 6.0,  "cost": 100, "type": "defensive",
 	},
 	{
-		"id": "shield_burst", "name": "Shield Burst",  "icon": "🛡️",
-		"desc": "Scudo energetico: invincibile per 1.5s.\nFlash bianco che respinge i proiettili.",
-		"cd": 8.0,  "cost": 120,
+		"id": "shield_burst",    "name": "Shield Burst",     "icon": "🛡️",
+		"desc": "Scudo energetico: invincibile per 1.5s.\nFlash bianco che assorbe tutto.",
+		"cd": 8.0,  "cost": 120, "type": "defensive",
 	},
 	{
-		"id": "plasma_bomb",  "name": "Plasma Bomb",   "icon": "💥",
+		"id": "void_shroud",     "name": "Void Shroud",      "icon": "🌑",
+		"desc": "Avvolge la nave in un mantello del vuoto.\n50% meno danno ricevuto per 4 secondi.",
+		"cd": 12.0, "cost": 140, "type": "defensive",
+	},
+	{
+		"id": "phase_shift",     "name": "Phase Shift",      "icon": "👁",
+		"desc": "Teletrasporto istantaneo 380px nella direzione di mira.\nInvincibile durante lo shift.",
+		"cd": 8.0,  "cost": 130, "type": "defensive",
+	},
+	{
+		"id": "healing_nova",    "name": "Healing Nova",     "icon": "💚",
+		"desc": "Impulso bionico: cura 50 HP.\nCura anche i compagni nel raggio di 300px.",
+		"cd": 14.0, "cost": 160, "type": "defensive",
+	},
+	{
+		"id": "temporal_barrier","name": "Temporal Barrier", "icon": "❄️",
+		"desc": "Congela tutti i nemici per 2.5 secondi.\nAura criogemica blu elettrico.",
+		"cd": 18.0, "cost": 180, "type": "defensive",
+	},
+	# ── OFFENSIVI (slot RB) ────────────────────────────────────────────────
+	{
+		"id": "plasma_bomb",     "name": "Plasma Bomb",      "icon": "💥",
 		"desc": "Esplosione AOE raggio 250px a 5× danno.\nColpisce tutti i nemici nell'area.",
-		"cd": 12.0, "cost": 150,
+		"cd": 12.0, "cost": 150, "type": "offensive",
 	},
 	{
-		"id": "time_surge",   "name": "Time Surge",    "icon": "⏳",
+		"id": "time_surge",      "name": "Time Surge",       "icon": "⏳",
 		"desc": "Rallenta tutti i nemici al 25% della velocità per 4 secondi.",
-		"cd": 18.0, "cost": 200,
+		"cd": 18.0, "cost": 200, "type": "offensive",
+	},
+	{
+		"id": "death_blossom",   "name": "Death Blossom",    "icon": "🌸",
+		"desc": "24 proiettili a 360° intorno alla nave.\nDanno 2.5× ciascuno. Devastante.",
+		"cd": 14.0, "cost": 170, "type": "offensive",
+	},
+	{
+		"id": "singularity",     "name": "Singularity",      "icon": "🕳",
+		"desc": "Crea una singolarità gravitazionale.\nAttira tutti i nemici per 2.5s poi esplode per 8× danno.",
+		"cd": 22.0, "cost": 220, "type": "offensive",
+	},
+	{
+		"id": "void_storm",      "name": "Void Storm",       "icon": "🌪",
+		"desc": "Tempesta di 5 esplosioni plasma casuali attorno al giocatore.\n4× danno ciascuna.",
+		"cd": 18.0, "cost": 190, "type": "offensive",
+	},
+	{
+		"id": "chain_nova",      "name": "Chain Nova",       "icon": "⚡",
+		"desc": "Scarica che si incatena tra i 5 nemici più vicini.\nDanno cresce del 50% a ogni salto.",
+		"cd": 12.0, "cost": 155, "type": "offensive",
 	},
 ]
 
 # ── Skin navicella (acquisto permanente) ──────────────────────────────────────
 const SKIN_CATALOG: Array = [
+	# ── Standard (acquistabili con ψ Souls) ────────────────────────────────
 	{
 		"id": "default",
 		"name": "Voidrunner",
@@ -114,6 +157,71 @@ const SKIN_CATALOG: Array = [
 		"desc": "Stealth puro. Silhouette a rombo,\nprofilo sottilissimo, quasi invisibile.",
 		"cost": 600,
 		"color": Color(0.50, 0.80, 0.90),
+	},
+	{
+		"id": "neon_ghost",
+		"name": "Neon Ghost",
+		"icon": "💚",
+		"desc": "Caccia stealth con mimetismo cromatico.\nVerde acido, invisibile nel Void.",
+		"cost": 350,
+		"color": Color(0.15, 1.00, 0.45),
+	},
+	{
+		"id": "aurora",
+		"name": "Aurora",
+		"icon": "🌌",
+		"desc": "Aerosilurante aurorale.\nColori cangianti, scia di plasma rosa-blu.",
+		"cost": 500,
+		"color": Color(0.90, 0.30, 1.00),
+	},
+	{
+		"id": "eclipse",
+		"name": "Eclipse",
+		"icon": "🌑",
+		"desc": "Il caccia più raro. Scafo nero-assoluto\ncon bordi dorati. Potere assoluto.",
+		"cost": 900,
+		"color": Color(1.00, 0.78, 0.10),
+	},
+	# ── Hardcore Esclusive (sbloccate automaticamente per traguardi HC) ────
+	{
+		"id": "void_reaper",
+		"name": "Void Reaper",
+		"icon": "☠",
+		"desc": "☠ HC ESCLUSIVO\nSblocca: sconfiggi il primo boss in Hardcore.\nRosso sangue — per chi non ha paura.",
+		"cost": 0,
+		"color": Color(0.90, 0.05, 0.05),
+		"hc_exclusive": true,
+		"hc_unlock_condition": "hc_boss_1",
+	},
+	{
+		"id": "crimson_fury",
+		"name": "Crimson Fury",
+		"icon": "🔥",
+		"desc": "☠ HC ESCLUSIVO\nSblocca: sopravvivi alla wave 5 in Hardcore.\nArancio-fuoco, nata nell'inferno del Void.",
+		"cost": 0,
+		"color": Color(1.00, 0.35, 0.02),
+		"hc_exclusive": true,
+		"hc_unlock_condition": "hc_wave_5",
+	},
+	{
+		"id": "blood_angel",
+		"name": "Blood Angel",
+		"icon": "😈",
+		"desc": "☠ HC ESCLUSIVO\nSblocca: sconfiggi 3 boss in Hardcore.\nCremisi profondo — la caccia al sangue.",
+		"cost": 0,
+		"color": Color(0.75, 0.00, 0.18),
+		"hc_exclusive": true,
+		"hc_unlock_condition": "hc_boss_3",
+	},
+	{
+		"id": "zero_kai",
+		"name": "Zero Kai",
+		"icon": "⚡",
+		"desc": "☠ HC ESCLUSIVO\nSblocca: raggiungi la wave 10 in Hardcore.\nBianco-elettrico. Il limite del possibile.",
+		"cost": 0,
+		"color": Color(0.88, 0.95, 1.00),
+		"hc_exclusive": true,
+		"hc_unlock_condition": "hc_wave_10",
 	},
 ]
 
@@ -148,6 +256,41 @@ const MODULE_CATALOG: Array = [
 		"desc": "Droni autonomi che orbitano e sparano ai nemici vicini.\nLv1: 1 drone, 1.5s/colpo\nLv2: 2 droni, 0.8s/colpo",
 		"max_level": 2, "costs": [250, 520],
 		"color": Color(1.00, 0.82, 0.10),   # oro
+	},
+	{
+		"id": "module_aura",
+		"name": "Aura del Void", "icon": "🌀",
+		"desc": "Campo energetico che brucia i nemici vicini.\nLv1: 15 dmg/2s entro 120px\nLv2: 25 dmg/1.5s entro 160px\nLv3: 45 dmg/s entro 200px",
+		"max_level": 3, "costs": [160, 320, 550],
+		"color": Color(0.65, 0.10, 1.00),   # viola
+	},
+	{
+		"id": "module_repair",
+		"name": "Bot Riparazione", "icon": "🔧",
+		"desc": "Nano-bot che rigenerano lentamente gli HP.\nLv1: +1 HP ogni 3s\nLv2: +2 HP ogni 2s\nLv3: +4 HP ogni 1.5s",
+		"max_level": 3, "costs": [120, 280, 480],
+		"color": Color(0.18, 1.00, 0.45),   # verde
+	},
+	{
+		"id": "module_echo",
+		"name": "Cannone Echo", "icon": "💫",
+		"desc": "Ogni colpo ha una probabilità di spararne uno secondo simultaneo.\nLv1: 18% chance\nLv2: 32% chance (+15% danno echo)",
+		"max_level": 2, "costs": [220, 460],
+		"color": Color(0.20, 0.80, 1.00),   # ciano
+	},
+	{
+		"id": "module_magnet",
+		"name": "Magnete Souls", "icon": "🧲",
+		"desc": "Attira automaticamente i pickup di equipaggiamento.\nLv1: raggio raccolta ×3\nLv2: raccolta automatica entro 400px",
+		"max_level": 2, "costs": [100, 240],
+		"color": Color(1.00, 0.68, 0.10),   # ambra
+	},
+	{
+		"id": "module_overclock",
+		"name": "Overclock Core", "icon": "⚙",
+		"desc": "Overclocka tutta la nave: stat combinate in un solo modulo.\nLv1: +20% vel, -0.02s fire rate\nLv2: +40% vel, -0.04s fire rate, +8% danno",
+		"max_level": 2, "costs": [280, 600],
+		"color": Color(1.00, 0.45, 0.10),   # arancio
 	},
 ]
 
@@ -217,6 +360,57 @@ const ITEM_CATALOG: Array = [
 		"desc": "Rigenera tutti gli oggetti nello shop.",
 		"cost": 90, "rarity": "rare", "fx": "reroll", "val": 0.0,
 	},
+	# ── Nuovi oggetti ─────────────────────────────────────────────────────
+	{
+		"id": "speed_xl",   "name": "Turboreattore Ionico",  "icon": "🚀",
+		"desc": "+120 velocità di movimento. Per chi fugge o insegue.",
+		"cost": 110, "rarity": "rare", "fx": "speed_bonus", "val": 120.0,
+	},
+	{
+		"id": "crit_xl",    "name": "Lente Critica",         "icon": "🔮",
+		"desc": "+18% probabilità critico. Precisione assoluta.",
+		"cost": 120, "rarity": "rare", "fx": "crit_bonus", "val": 0.18,
+	},
+	{
+		"id": "triple_pierce","name": "Perforatore Omega",   "icon": "🎯",
+		"desc": "+3 nemici attraversati per proiettile. Devastante nelle masse.",
+		"cost": 280, "rarity": "legendary", "fx": "pierce", "val": 3.0,
+	},
+	{
+		"id": "fire_rate_xl","name": "Cadenza Massima",      "icon": "🔥",
+		"desc": "Fire rate potenziata al massimo (-0.08s). Valanga di fuoco.",
+		"cost": 150, "rarity": "rare", "fx": "fire_rate_bonus", "val": 0.08,
+	},
+	{
+		"id": "berserker",  "name": "Nucleo Berserker",      "icon": "😤",
+		"desc": "+60% danno. Un'arma a doppio taglio per i coraggiosi.",
+		"cost": 140, "rarity": "rare", "fx": "damage_pct", "val": 0.60,
+	},
+	{
+		"id": "void_resonance","name": "Risonanza del Void", "icon": "🌌",
+		"desc": "+50% danno + +10% critico. La sinergia perfetta.",
+		"cost": 300, "rarity": "legendary", "fx": "damage_pct", "val": 0.50,
+	},
+	{
+		"id": "health_mega","name": "Corazza Void",          "icon": "💠",
+		"desc": "+80 HP massimi + cura immediata 50 HP. Sopravvivenza totale.",
+		"cost": 200, "rarity": "legendary", "fx": "health_bonus_heal", "val": 80.0,
+	},
+	{
+		"id": "soul_surge", "name": "Anomalia Omega",        "icon": "✨",
+		"desc": "Ricevi subito 180 Souls extra. Fortuna del Void.",
+		"cost": 50,  "rarity": "uncommon", "fx": "souls_bonus", "val": 180.0,
+	},
+	{
+		"id": "cdr_max",    "name": "Singolarità Temporale", "icon": "⏰",
+		"desc": "Cooldown poteri ridotto del 35%. Quasi in loop.",
+		"cost": 220, "rarity": "legendary", "fx": "cdr_bonus", "val": 0.35,
+	},
+	{
+		"id": "void_armor", "name": "Scudo del Vuoto",       "icon": "🛡",
+		"desc": "+50 HP massimi + fuoco più veloce (-0.03s fire rate).",
+		"cost": 170, "rarity": "rare", "fx": "health_bonus", "val": 50.0,
+	},
 ]
 
 # ── Stato ─────────────────────────────────────────────────────────────────────
@@ -231,6 +425,8 @@ var _items_rolled:   bool  = false   # true dopo _roll_items() della wave corren
 # Tab: 0=Potenziamenti  1=Potere Q  2=Potere E
 var _current_tab:   int   = 0
 var _tab_btns:      Array = []
+var _carousel_tween: Tween = null   # tween attivo per il centramento carousel
+var _focused_card_idx: int  = 0     # indice dell'ultima card focalizzata (ripristinato dopo rebuild)
 
 
 # ══════════════════════════════════════════════
@@ -241,10 +437,21 @@ func _ready() -> void:
 	add_to_group("shop")
 	# PROCESS_MODE_ALWAYS: continua a funzionare anche quando get_tree().paused = true
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	set_process(true)                   # _process() per chiudere su GAME_OVER / MENU
+	set_process_input(true)             # _input() per JOY_BUTTON_BACK (prima del routing GUI)
 	set_process_unhandled_key_input(true)
-	set_process_unhandled_input(true)   # necessario per ricevere eventi joypad
+	set_process_unhandled_input(true)   # _unhandled_input() per A/B/L1/R1 quando shop aperto
 	_build_ui()
 	_hook_wave_signal()
+
+
+## Chiude lo shop automaticamente se il gioco passa a GAME_OVER o MENU.
+## Evita che la UI dello shop rimanga visibile sopra la schermata finale.
+func _process(_delta: float) -> void:
+	if _is_open and (
+			GameManager.current_state == GameManager.GameState.GAME_OVER or
+			GameManager.current_state == GameManager.GameState.MENU):
+		_close()
 
 
 ## Tastiera: F2 apri/chiudi shop (debug), F3 regala souls (debug)
@@ -268,8 +475,26 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_rebuild_grid()   # aggiorna bottoni acquistabili
 
 
-## Controller: Select/Back = apri shop  |  B/Cerchio = chiudi shop
-## A/X = conferma/compra (fallback esplicito se ui_accept non raggiunge il Button in focus)
+## _input() viene processato PRIMA del routing GUI (ScrollContainer, Button in focus, ecc.).
+## Usiamo questo SOLO per JOY_BUTTON_BACK (Select/Share) così nessun Control può
+## intercettarlo prima di noi. Tutti gli altri tasti restano in _unhandled_input().
+func _input(event: InputEvent) -> void:
+	if not (event is InputEventJoypadButton):
+		return
+	var jb := event as InputEventJoypadButton
+	if not jb.pressed:
+		return
+	if jb.button_index == JOY_BUTTON_BACK:
+		# Select / Share / Back — toggle shop
+		get_viewport().set_input_as_handled()
+		if _is_open:
+			_close()
+		else:
+			_open()
+
+
+## Controller: B/Cerchio = chiudi shop  |  A/X = conferma/compra  |  L1/R1 = cambia tab
+## Nota: JOY_BUTTON_BACK (Select) è gestito in _input() per garantire ricezione certa.
 func _unhandled_input(event: InputEvent) -> void:
 	if not (event is InputEventJoypadButton):
 		return
@@ -278,13 +503,6 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	match jb.button_index:
-		JOY_BUTTON_BACK:
-			# Select / Share / Back — apri shop se chiuso, chiudi se aperto
-			get_viewport().set_input_as_handled()
-			if _is_open:
-				_close()
-			else:
-				_open()
 		JOY_BUTTON_B:
 			# B (Xbox) / Cerchio (PS) — chiudi shop
 			if _is_open:
@@ -337,6 +555,7 @@ func _on_wave_changed(_wave: int) -> void:
 	_items_rolled = false
 	_roll_items()
 	_items_rolled = true   # blocca ulteriori re-roll fino alla prossima wave
+	_current_tab  = 0     # sempre tab BOOST (0) all'apertura automatica
 	_open()
 
 
@@ -359,13 +578,18 @@ func _build_ui() -> void:
 	_canvas.add_child(overlay)
 
 	# Panel centrale
+	# Altezza 620px: la content_area riceve ~354px, sufficiente per le card più
+	# alte (moduli con descrizioni lunghe che autowrappano fino a ~300px).
+	# clip_contents = true: protezione definitiva, nulla può uscire visivamente
+	# dai bordi del panel anche in caso di layout edge-case.
 	var panel := Panel.new()
 	panel.set_anchors_preset(Control.PRESET_CENTER)
-	panel.custom_minimum_size = Vector2(1040, 560)
+	panel.custom_minimum_size = Vector2(1040, 620)
+	panel.clip_contents = true
 	panel.offset_left   = -520
 	panel.offset_right  =  520
-	panel.offset_top    = -280
-	panel.offset_bottom =  280
+	panel.offset_top    = -310
+	panel.offset_bottom =  310
 	panel.add_theme_stylebox_override("panel", _mk_style(C_BG, C_ACC, 16, 2))
 	_canvas.add_child(panel)
 
@@ -425,11 +649,11 @@ func _build_ui() -> void:
 	tab_row.add_child(rhint)
 
 	var tab_defs: Array = [
-		["⚡  BOOST",        C_ACC],
-		["◈  POTERE  Q",    C_SLOT_Q],
-		["◈  POTERE  E",    C_SLOT_E],
-		["🚀  MODULI",      Color(1.00, 0.82, 0.10)],
-		["🎨  SKIN",        Color(0.90, 0.55, 1.00)],
+		["⚡  BOOST",         C_ACC],
+		["🛡  DIFESA  (LB)",  C_SLOT_Q],
+		["⚔  ATTACCO  (RB)", C_SLOT_E],
+		["🚀  MODULI",       Color(1.00, 0.82, 0.10)],
+		["🎨  SKIN",         Color(0.90, 0.55, 1.00)],
 	]
 	for ti: int in tab_defs.size():
 		var td: Array = tab_defs[ti]
@@ -462,8 +686,7 @@ func _build_ui() -> void:
 	_item_grid = HBoxContainer.new()
 	_item_grid.add_theme_constant_override("separation", 16)
 	_item_grid.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_item_grid.alignment          = BoxContainer.ALIGNMENT_CENTER
-	_item_grid.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_item_grid.alignment = BoxContainer.ALIGNMENT_CENTER
 	_content_area.add_child(_item_grid)
 
 	# ── Footer ────────────────────────────────────────────────────────────────
@@ -515,6 +738,7 @@ func _open() -> void:
 	_rebuild_grid()
 	_refresh_souls()
 	_update_title()
+	_refresh_tab_buttons()
 	_canvas.visible = true
 	GameManager.current_state = GameManager.GameState.PAUSED
 	# Controller: dai focus al primo bottone acquistabile (o SkipBtn)
@@ -525,6 +749,8 @@ func _close() -> void:
 	if not _is_open:
 		return
 	_is_open = false
+	_current_tab = 0
+	_focused_card_idx = 0
 	_canvas.visible = false
 	# FIX: rilascia il focus GUI così nessun button invisible intercetta gli input
 	get_viewport().gui_release_focus()
@@ -543,6 +769,7 @@ func open() -> void:
 # ══════════════════════════════════════════════
 
 func _switch_tab(idx: int) -> void:
+	_focused_card_idx = 0   # nuova tab → riparte dalla prima card
 	_current_tab = idx
 	_refresh_tab_buttons()
 	_rebuild_grid()
@@ -557,19 +784,29 @@ func _refresh_tab_buttons() -> void:
 
 
 func _grab_first_focus() -> void:
-	## Dà il focus al primo bottone ABILITATO per navigazione controller.
-	## Usato ogni volta che lo shop apre, cambia tab o completa un acquisto.
-	await get_tree().process_frame
-	# FIX: se lo shop è già stato chiuso durante l'await, non dare focus
+	## Schedula il focus via call_deferred invece di await process_frame.
+	## call_deferred evita il gap di un frame dove il focus è null (che causava
+	## la perdita di focus al cambio tab), ma gira DOPO che il MessageQueue ha
+	## smaltito le queue_free, quindi i vecchi bottoni sono già esclusi dal filtro
+	## is_queued_for_deletion() in _collect_focusable_buttons.
+	call_deferred("_do_grab_focus")
+
+
+func _do_grab_focus() -> void:
 	if not _is_open:
 		return
-	# Raccoglie tutti i button abilitati e collega la catena focus esplicita.
-	# Necessario perché Godot 4 non riesce a navigare automaticamente tra bottoni
-	# annidati in PanelContainer→VBoxContainer con D-pad/freccette.
+	# Raccoglie tutti i button navigabili (anche disabled) e collega la catena
+	# focus esplicita. Necessario perché Godot 4 non riesce a navigare
+	# automaticamente tra bottoni annidati con D-pad/freccette.
 	var btns := _collect_focusable_buttons(_content_area)
 	_setup_focus_chain(btns)
 	if btns.size() > 0:
-		btns[0].grab_focus()
+		# Ripristina la posizione dell'ultima card focalizzata (clamped alla nuova size).
+		var idx := mini(_focused_card_idx, btns.size() - 1)
+		btns[idx].grab_focus()
+		# Posiziona il carousel sulla card ripristinata.
+		# _center_on_btn gestisce autonomamente il retry se clip.size.x == 0.
+		_center_on_btn(btns[idx], false)
 		return
 	# Fallback: pulsante "Continua ▶"
 	var skip := _canvas.find_child("SkipBtn", true, false)
@@ -577,17 +814,40 @@ func _grab_first_focus() -> void:
 		(skip as Button).grab_focus()
 
 
-## Raccoglie depth-first TUTTI i Button abilitati e focalizzabili nell'albero.
+## Raccoglie depth-first TUTTI i Button focalizzabili nell'albero, inclusi i
+## disabled. Questo permette al carousel di scorrere su TUTTE le card (anche
+## quelle non acquistabili), coerentemente con la UX standard degli shop.
+## L'handler del tasto A controlla già `not disabled` prima di emettere pressed.
+## Esclude i nodi in queue_free (is_queued_for_deletion) per evitare di
+## raccogliere bottoni del tab precedente ancora in attesa di essere distrutti.
 func _collect_focusable_buttons(node: Node) -> Array:
 	var result: Array = []
+	if node.is_queued_for_deletion():
+		return result
 	if node is Button:
 		var b := node as Button
-		if not b.disabled and b.focus_mode != Control.FOCUS_NONE:
+		if b.focus_mode != Control.FOCUS_NONE:
 			result.append(b)
 		return result   # non scendere nei figli di un Button
 	for child in node.get_children():
 		result.append_array(_collect_focusable_buttons(child))
 	return result
+
+
+## Ritorna l'indice nell'array dei bottoni focusabili del bottone attualmente
+## in focus. Ritorna 0 se nessun bottone è focalizzato o non trovato.
+## Usato da _rebuild_grid() per ricordare la posizione prima di svuotare la griglia.
+func _get_focused_card_idx() -> int:
+	var btns := _collect_focusable_buttons(_content_area)
+	if btns.is_empty():
+		return 0
+	var focused: Control = get_viewport().gui_get_focus_owner() if get_viewport() else null
+	if focused == null:
+		return 0
+	for i: int in btns.size():
+		if btns[i] == focused:
+			return i
+	return 0
 
 
 ## Collega esplicitamente focus_neighbor_left/right tra i bottoni della lista.
@@ -603,6 +863,10 @@ func _setup_focus_chain(btns: Array) -> void:
 		b.focus_neighbor_right  = btns[(i + 1) % n].get_path()
 		b.focus_neighbor_top    = b.get_path()   # rimani sulla riga (non uscire su)
 		b.focus_neighbor_bottom = b.get_path()   # rimani sulla riga (non uscire giù)
+		# Connetti focus_entered per il carousel (meta-guard anti-doppia connessione)
+		if not b.has_meta("_carousel_hooked"):
+			b.set_meta("_carousel_hooked", true)
+			b.focus_entered.connect(_on_btn_focused.bind(b))
 
 
 ## Ricerca depth-first del primo Button abilitato e focalizzabile.
@@ -653,20 +917,32 @@ func _roll_items() -> void:
 
 
 func _rebuild_grid() -> void:
+	# Salva la posizione della card focalizzata prima di svuotare
+	_focused_card_idx = _get_focused_card_idx()
 	# Svuota l'area contenuto
 	for c: Node in _content_area.get_children():
 		c.queue_free()
 
 	match _current_tab:
 		0:  # Potenziamenti
-			_item_grid = HBoxContainer.new()
-			_item_grid.add_theme_constant_override("separation", 16)
-			_item_grid.set_anchors_preset(Control.PRESET_FULL_RECT)
-			_item_grid.alignment          = BoxContainer.ALIGNMENT_CENTER
-			_item_grid.size_flags_vertical = Control.SIZE_EXPAND_FILL
-			_content_area.add_child(_item_grid)
-			for item: Dictionary in _current_items:
-				_item_grid.add_child(_build_item_card(item))
+			var spawner := get_tree().get_first_node_in_group("enemy_spawner")
+			var cw: int = int(spawner.get("current_wave")) if spawner else 2
+			if cw <= 1:
+				# Wave 1 ancora in corso: mostra messaggio, boost disponibili dalla prossima wave
+				_item_grid = HBoxContainer.new()
+				_item_grid.set_anchors_preset(Control.PRESET_FULL_RECT)
+				_item_grid.alignment = BoxContainer.ALIGNMENT_CENTER
+				_content_area.add_child(_item_grid)
+				var msg := _lbl(
+					"⚡  I potenziamenti si sbloccano dalla Wave 2.\n     Completa la prima wave per sbloccare lo shop!",
+					20, C_DIM)
+				msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+				msg.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
+				_item_grid.add_child(msg)
+			else:
+				_item_grid = _make_scroll_hbox(16)
+				for item: Dictionary in _current_items:
+					_item_grid.add_child(_build_item_card(item))
 		1:
 			_rebuild_powers_tab("q")
 		2:
@@ -678,27 +954,122 @@ func _rebuild_grid() -> void:
 
 
 # ══════════════════════════════════════════════
-#  Tab Poteri Q / E
+#  Helper layout: ScrollContainer + HBoxContainer
+# ══════════════════════════════════════════════
+
+## Carousel centrato: clip Control + HBoxContainer posizionato via tween.
+## Quando un bottone riceve il focus, la card che lo contiene viene portata
+## al centro dell'area visibile con un'animazione fluida.
+## Nessuna scrollbar — effetto da UI di gioco moderna.
+func _make_scroll_hbox(separation: int = 16) -> HBoxContainer:
+	var clip := Control.new()
+	clip.set_anchors_preset(Control.PRESET_FULL_RECT)
+	clip.clip_contents = true
+	_content_area.add_child(clip)
+
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", separation)
+	hbox.set_meta("carousel_clip", clip)
+	clip.add_child(hbox)
+
+	# FIX altezza card: l'hbox parte con min.y enorme (desc a larghezza 1px).
+	# Dopo il layout pass Godot riduce il min, ma il plain Control (clip) non
+	# ridimensiona i figli automaticamente. Questo segnale coglie il momento in
+	# cui il min scende al valore corretto e forza la size a coincidere.
+	hbox.minimum_size_changed.connect(func():
+		if not is_instance_valid(hbox): return
+		var min_y := hbox.get_minimum_size().y
+		if hbox.size.y > min_y:
+			hbox.size.y = min_y)
+
+	return hbox
+
+
+## Chiamato da focus_entered di ogni bottone (navigazione D-pad/controller).
+## animated=true: tween fluido. Chiamato con animated=false da _grab_first_focus
+## per posizionare istantaneamente senza flash di sinistra.
+func _on_btn_focused(btn: Button) -> void:
+	_center_on_btn(btn, true)
+
+
+## Porta la card che contiene `btn` al centro del clip carousel.
+## animated=false → posizionamento immediato (usato all'apertura/acquisto).
+## animated=true  → tween fluido Quart-out 0.18s (usato con D-pad).
+func _center_on_btn(btn: Button, animated: bool = true) -> void:
+	if not is_instance_valid(btn):
+		return
+
+	# Risali i parent per trovare l'HBoxContainer con il meta "carousel_clip"
+	var hbox: HBoxContainer = null
+	var node: Node = btn.get_parent()
+	while node != null:
+		if node is HBoxContainer and node.has_meta("carousel_clip"):
+			hbox = node as HBoxContainer
+			break
+		node = node.get_parent()
+	if not hbox or not is_instance_valid(hbox):
+		return
+
+	var clip := hbox.get_meta("carousel_clip") as Control
+	if not clip or not is_instance_valid(clip):
+		return
+
+	# Guard: se clip non è ancora stato dimensionato dal layout (clip.size.x == 0
+	# succede nel primo frame dopo queue_free+add_child), riprova al frame
+	# successivo DOPO il layout pass invece di fallire silenziosamente.
+	if clip.size.x == 0:
+		call_deferred("_center_on_btn", btn, false)
+		return
+
+	# Trova il figlio diretto dell'hbox che è antenato di btn
+	# (struttura: hbox → PanelContainer/card → VBox → btn)
+	var card: Control = null
+	var p: Node = btn
+	while p != null and p.get_parent() != hbox:
+		p = p.get_parent()
+	if p != null and p != hbox and p is Control:
+		card = p as Control
+	if not card:
+		return
+
+	# Posizione target: centro del clip - centro della card nell'hbox
+	var clip_half   := clip.size.x * 0.5
+	var card_center := card.position.x + card.size.x * 0.5
+	var target_x    := clip_half - card_center
+
+	# Interrompi il tween precedente
+	if _carousel_tween and _carousel_tween.is_valid():
+		_carousel_tween.kill()
+
+	if animated:
+		_carousel_tween = create_tween()
+		_carousel_tween.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUART)
+		_carousel_tween.tween_property(hbox, "position:x", target_x, 0.18)
+	else:
+		hbox.position.x = target_x
+
+
+# ══════════════════════════════════════════════
+#  Tab Poteri: DIFESA (slot LB) / ATTACCO (slot RB)
 # ══════════════════════════════════════════════
 
 func _rebuild_powers_tab(slot_key: String) -> void:
-	var slot_col: Color = C_SLOT_Q if slot_key == "q" else C_SLOT_E
-	var meta_key: String = "active_power_" + slot_key
+	var slot_col:    Color  = C_SLOT_Q if slot_key == "q" else C_SLOT_E
+	var power_type:  String = "defensive" if slot_key == "q" else "offensive"
+	var meta_key:    String = "active_power_" + slot_key
 
 	# Potere attualmente equipaggiato in questo slot
 	var equipped_id: String = ""
 	if GameManager.has_meta(meta_key):
 		equipped_id = GameManager.get_meta(meta_key) as String
 
-	var grid := HBoxContainer.new()
-	grid.add_theme_constant_override("separation", 16)
-	grid.set_anchors_preset(Control.PRESET_FULL_RECT)
-	grid.alignment          = BoxContainer.ALIGNMENT_CENTER
-	grid.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_content_area.add_child(grid)
+	_item_grid = _make_scroll_hbox(16)
 
 	for power: Dictionary in POWER_CATALOG:
-		grid.add_child(_build_power_card(power, slot_key, slot_col, equipped_id))
+		# Mostra solo i poteri del tipo corretto per questo slot
+		if power.get("type", "") != power_type:
+			continue
+		_item_grid.add_child(_build_power_card(power, slot_key, slot_col, equipped_id))
 
 
 func _build_power_card(
@@ -717,7 +1088,9 @@ func _build_power_card(
 
 	var border_col := Color.WHITE if is_equipped else slot_col
 	var pc := PanelContainer.new()
-	pc.custom_minimum_size = Vector2(212, 262)
+	pc.custom_minimum_size = Vector2(220, 300)
+	pc.clip_contents       = true
+
 	var sty := _mk_style(
 		Color(slot_col.r * 0.07, slot_col.g * 0.07, slot_col.b * 0.07, 0.97),
 		border_col if active else C_DIM,
@@ -754,8 +1127,9 @@ func _build_power_card(
 
 	# Descrizione
 	var desc := _lbl(power["desc"] as String, 13, C_HI)
-	desc.autowrap_mode       = TextServer.AUTOWRAP_WORD_SMART
-	desc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	desc.autowrap_mode          = TextServer.AUTOWRAP_WORD_SMART
+	desc.size_flags_horizontal  = Control.SIZE_EXPAND_FILL
+	desc.size_flags_vertical    = Control.SIZE_EXPAND_FILL
 	vbox.add_child(desc)
 
 	# Hint sblocco permanente
@@ -811,6 +1185,19 @@ func _build_power_card(
 
 
 func _buy_power(power_id: String, slot_key: String, cost: int) -> void:
+	# Guard: verifica che il tipo del potere sia coerente con lo slot
+	# (difensivo → "q",  offensivo → "e")
+	var expected_type: String = "defensive" if slot_key == "q" else "offensive"
+	var found_type: String = ""
+	for p: Dictionary in POWER_CATALOG:
+		if (p["id"] as String) == power_id:
+			found_type = p.get("type", "") as String
+			break
+	if found_type != "" and found_type != expected_type:
+		push_error("Shop: potere '%s' (tipo %s) non può andare nello slot '%s' — operazione annullata." \
+			% [power_id, found_type, slot_key])
+		return
+
 	# Se cost > 0 → prima volta, sblocca permanentemente
 	if cost > 0:
 		if not MetaManager.unlock_power(power_id, cost):
@@ -830,15 +1217,9 @@ func _buy_power(power_id: String, slot_key: String, cost: int) -> void:
 # ══════════════════════════════════════════════
 
 func _rebuild_modules_tab() -> void:
-	var grid := HBoxContainer.new()
-	grid.add_theme_constant_override("separation", 14)
-	grid.set_anchors_preset(Control.PRESET_FULL_RECT)
-	grid.alignment          = BoxContainer.ALIGNMENT_CENTER
-	grid.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_content_area.add_child(grid)
-
+	_item_grid = _make_scroll_hbox(14)
 	for mod: Dictionary in MODULE_CATALOG:
-		grid.add_child(_build_module_card(mod))
+		_item_grid.add_child(_build_module_card(mod))
 
 
 func _build_module_card(mod: Dictionary) -> PanelContainer:
@@ -852,7 +1233,9 @@ func _build_module_card(mod: Dictionary) -> PanelContainer:
 	var affordable: bool  = maxed or MetaManager.total_souls >= cost
 
 	var pc := PanelContainer.new()
-	pc.custom_minimum_size = Vector2(218, 272)
+	pc.custom_minimum_size = Vector2(220, 300)
+	pc.clip_contents       = true
+
 	var sty := _mk_style(
 		Color(mod_col.r * 0.07, mod_col.g * 0.06, mod_col.b * 0.04, 0.97),
 		mod_col if affordable else C_DIM, 12, 2 if affordable else 1)
@@ -900,8 +1283,9 @@ func _build_module_card(mod: Dictionary) -> PanelContainer:
 
 	# Descrizione
 	var desc_lbl := _lbl(mod["desc"] as String, 13, C_HI)
-	desc_lbl.autowrap_mode       = TextServer.AUTOWRAP_WORD_SMART
-	desc_lbl.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	desc_lbl.autowrap_mode         = TextServer.AUTOWRAP_WORD_SMART
+	desc_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	desc_lbl.size_flags_vertical   = Control.SIZE_EXPAND_FILL
 	vbox.add_child(desc_lbl)
 
 	# Badge PERMANENTE
@@ -959,28 +1343,25 @@ func _buy_module(mod_id: String, cost: int) -> void:
 # ══════════════════════════════════════════════
 
 func _rebuild_skins_tab() -> void:
-	var grid := HBoxContainer.new()
-	grid.add_theme_constant_override("separation", 14)
-	grid.set_anchors_preset(Control.PRESET_FULL_RECT)
-	grid.alignment          = BoxContainer.ALIGNMENT_CENTER
-	grid.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_content_area.add_child(grid)
-
+	_item_grid = _make_scroll_hbox(14)
 	for skin: Dictionary in SKIN_CATALOG:
-		grid.add_child(_build_skin_card(skin))
+		_item_grid.add_child(_build_skin_card(skin))
 
 
 func _build_skin_card(skin: Dictionary) -> PanelContainer:
-	var skin_id:     String = skin["id"]
-	var skin_col:    Color  = skin["color"] as Color
-	var cost:        int    = skin["cost"] as int
-	var is_selected: bool   = (MetaManager.selected_skin == skin_id)
-	var is_unlocked: bool   = MetaManager.is_skin_unlocked(skin_id)
-	var can_afford:  bool   = is_unlocked or MetaManager.total_souls >= cost
-	var active:      bool   = is_selected or is_unlocked or can_afford
+	var skin_id:      String = skin["id"]
+	var skin_col:     Color  = skin["color"] as Color
+	var cost:         int    = skin["cost"] as int
+	var is_hc:        bool   = skin.get("hc_exclusive", false)
+	var is_selected:  bool   = (MetaManager.selected_skin == skin_id)
+	var is_unlocked:  bool   = MetaManager.is_skin_unlocked(skin_id)
+	var can_afford:   bool   = is_unlocked or (not is_hc and MetaManager.total_souls >= cost)
+	var active:       bool   = is_selected or is_unlocked or can_afford
 
 	var pc := PanelContainer.new()
-	pc.custom_minimum_size = Vector2(218, 272)
+	pc.custom_minimum_size = Vector2(220, 300)
+	pc.clip_contents       = true
+
 	var sty := _mk_style(
 		Color(skin_col.r * 0.07, skin_col.g * 0.06, skin_col.b * 0.04, 0.97),
 		skin_col if active else C_DIM, 12, 3 if is_selected else (2 if active else 1))
@@ -1005,9 +1386,14 @@ func _build_skin_card(skin: Dictionary) -> PanelContainer:
 		badge_txt = "✓ ATTIVA"
 	elif is_unlocked:
 		badge_txt = "🔓 SBLOCCATA"
+	elif is_hc and not is_unlocked:
+		badge_txt = "☠ HC ESCLUSIVA"
 	else:
 		badge_txt = "🔒 ψ %d" % cost
-	var badge_col := Color.WHITE if is_selected else (C_GREEN if is_unlocked else C_GOLD)
+	var badge_col := (Color.WHITE if is_selected
+		else (C_GREEN if is_unlocked
+		else (Color(1.0, 0.3, 0.3) if is_hc
+		else C_GOLD)))
 	var badge_lbl := _lbl(badge_txt, 12, badge_col)
 	badge_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	badge_lbl.horizontal_alignment  = HORIZONTAL_ALIGNMENT_RIGHT
@@ -1019,8 +1405,9 @@ func _build_skin_card(skin: Dictionary) -> PanelContainer:
 
 	# Descrizione
 	var desc_lbl := _lbl(skin["desc"] as String, 13, C_HI)
-	desc_lbl.autowrap_mode       = TextServer.AUTOWRAP_WORD_SMART
-	desc_lbl.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	desc_lbl.autowrap_mode         = TextServer.AUTOWRAP_WORD_SMART
+	desc_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	desc_lbl.size_flags_vertical   = Control.SIZE_EXPAND_FILL
 	vbox.add_child(desc_lbl)
 
 	# Badge PERMANENTE
@@ -1053,6 +1440,11 @@ func _build_skin_card(skin: Dictionary) -> PanelContainer:
 		var cap_id   := skin_id
 		var cap_cost := 0
 		btn.pressed.connect(func(): _buy_equip_skin(cap_id, cap_cost))
+	elif is_hc and not is_unlocked:
+		# HC esclusiva: non acquistabile con souls, solo tramite traguardo
+		btn.text     = "☠  TRAGUARDO HC"
+		btn.disabled  = true
+		btn.modulate  = Color(0.7, 0.3, 0.3, 0.9)
 	elif can_afford:
 		btn.text = "ACQUISTA  ψ %d" % cost
 		btn.add_theme_color_override("font_color", C_GOLD)
@@ -1076,6 +1468,8 @@ func _build_skin_card(skin: Dictionary) -> PanelContainer:
 func _buy_equip_skin(skin_id: String, cost: int) -> void:
 	if not MetaManager.unlock_and_select_skin(skin_id, cost):
 		return   # souls insufficienti
+	# Forza l'aggiornamento del colore/visuale su tutti i player attivi
+	_recalc_all_players()
 	_refresh_souls()
 	_rebuild_grid()
 	_grab_first_focus()
@@ -1092,7 +1486,8 @@ func _build_item_card(item: Dictionary) -> PanelContainer:
 	var affordable: bool = MetaManager.total_souls >= cost
 
 	var pc := PanelContainer.new()
-	pc.custom_minimum_size = Vector2(204, 250)
+	pc.custom_minimum_size = Vector2(220, 300)
+	pc.clip_contents       = true
 
 	var sty := _mk_style(
 		Color(col.r * 0.08, col.g * 0.08, col.b * 0.08, 0.97),
@@ -1126,8 +1521,9 @@ func _build_item_card(item: Dictionary) -> PanelContainer:
 
 	# Descrizione
 	var desc := _lbl(item["desc"], 13, C_HI)
-	desc.autowrap_mode       = TextServer.AUTOWRAP_WORD_SMART
-	desc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	desc.autowrap_mode          = TextServer.AUTOWRAP_WORD_SMART
+	desc.size_flags_horizontal  = Control.SIZE_EXPAND_FILL
+	desc.size_flags_vertical    = Control.SIZE_EXPAND_FILL
 	vbox.add_child(desc)
 
 	# Bottone acquisto

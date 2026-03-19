@@ -231,6 +231,10 @@ var selected_skin:   String = "default"       ## Skin navicella attiva
 var unlocked_skins:  Array  = ["default"]     ## Skin sbloccate permanentemente
 var unlocked_powers: Array  = []              ## Power-id sbloccati permanentemente (una-tantum)
 
+## Contatori Hardcore per sblocco skin esclusive
+var total_hc_bosses_killed: int = 0           ## Boss totali uccisi in modalità HC (cumulativi)
+var best_wave_hardcore_all: int = 0           ## Alias: usa best_wave_hardcore, ridondante ma esplicito
+
 # ---------------------------------------------------------------------------
 # STATO RUNTIME (non salvato)
 # ---------------------------------------------------------------------------
@@ -326,8 +330,10 @@ func on_run_complete(_success: bool, wave_reached: int, kills: int) -> void:
 		souls_earned = int(souls_earned * 1.5)
 	gain_xp(selected_character, souls_earned)
 
-	# Controlla sblocchi
+	# Controlla sblocchi standard
 	_check_unlocks(wave_reached)
+	# Controlla sblocchi skin HC
+	_check_hc_skin_unlocks()
 
 	# Reset runtime
 	crit_storm_stacks = 0
@@ -339,6 +345,41 @@ func on_run_complete(_success: bool, wave_reached: int, kills: int) -> void:
 ## True se la modalità Hardcore è sbloccata
 func is_hardcore_unlocked() -> bool:
 	return total_souls_ever >= 500 or best_wave >= 8
+
+
+## Chiamato dall'EnemySpawner quando un boss muore in modalità Hardcore
+func on_boss_killed_hc() -> void:
+	total_hc_bosses_killed += 1
+	_check_hc_skin_unlocks()
+	save_progress()
+
+
+## Controlla e sblocca automaticamente le skin HC-esclusive
+func _check_hc_skin_unlocks() -> void:
+	var conditions: Dictionary = {
+		"void_reaper":   total_hc_bosses_killed >= 1,
+		"hc_wave_5":     best_wave_hardcore >= 5,    # → "crimson_fury"
+		"hc_boss_3":     total_hc_bosses_killed >= 3, # → "blood_angel"
+		"hc_wave_10":    best_wave_hardcore >= 10,    # → "zero_kai"
+	}
+	# Mappa condition → skin_id
+	var cond_to_skin: Dictionary = {
+		"hc_boss_1":  "void_reaper",
+		"hc_wave_5":  "crimson_fury",
+		"hc_boss_3":  "blood_angel",
+		"hc_wave_10": "zero_kai",
+	}
+	# Ridefinisci correttamente usando hc_unlock_condition come chiave
+	var skin_conditions: Dictionary = {
+		"void_reaper":  total_hc_bosses_killed >= 1,
+		"crimson_fury": best_wave_hardcore >= 5,
+		"blood_angel":  total_hc_bosses_killed >= 3,
+		"zero_kai":     best_wave_hardcore >= 10,
+	}
+	for skin_id: String in skin_conditions:
+		if skin_id not in unlocked_skins and skin_conditions[skin_id]:
+			unlocked_skins.append(skin_id)
+			character_unlocked.emit(skin_id)   # riusa il segnale per notifiche UI
 
 
 func _check_unlocks(wave_reached: int) -> void:
@@ -470,8 +511,25 @@ func get_active_stats() -> Dictionary:
 	return stats
 
 
-## Ritorna il colore del personaggio selezionato
+## Colori delle skin — deve restare sincronizzato con SKIN_CATALOG in shop.gd
+const SKIN_COLOR_MAP: Dictionary = {
+	"default":      Color(0.55, 0.22, 1.00),
+	"interceptor":  Color(0.30, 0.60, 1.00),
+	"titan":        Color(0.90, 0.65, 0.20),
+	"phantom":      Color(0.50, 0.80, 0.90),
+	"neon_ghost":   Color(0.15, 1.00, 0.45),
+	"aurora":       Color(0.90, 0.30, 1.00),
+	"eclipse":      Color(1.00, 0.78, 0.10),
+	"void_reaper":  Color(0.90, 0.05, 0.05),
+	"crimson_fury": Color(1.00, 0.35, 0.02),
+	"blood_angel":  Color(0.75, 0.00, 0.18),
+	"zero_kai":     Color(0.88, 0.95, 1.00),
+}
+
+## Ritorna il colore attivo: skin selezionata (se non default) altrimenti colore personaggio
 func get_active_color() -> Color:
+	if selected_skin != "default" and SKIN_COLOR_MAP.has(selected_skin):
+		return SKIN_COLOR_MAP[selected_skin]
 	return CHARACTERS.get(selected_character, CHARACTERS["void_sentinel"]).get("color", Color.CYAN)
 
 
@@ -511,20 +569,21 @@ func on_enemy_killed_for_entropy() -> void:
 # ---------------------------------------------------------------------------
 func save_progress() -> void:
 	var data := {
-		"total_souls":        total_souls,
-		"total_souls_ever":   total_souls_ever,
-		"best_wave":           best_wave,
-		"best_wave_hardcore":  best_wave_hardcore,
-		"character_levels":   character_levels,
-		"character_xp":       character_xp,
-		"unlocked_characters": unlocked_characters,
-		"unlocked_talents":   unlocked_talents,
-		"selected_character": selected_character,
-		"runs_per_character": runs_per_character,
-		"perm_upgrades":      perm_upgrades,
-		"selected_skin":      selected_skin,
-		"unlocked_skins":     unlocked_skins,
-		"unlocked_powers":    unlocked_powers,
+		"total_souls":             total_souls,
+		"total_souls_ever":        total_souls_ever,
+		"best_wave":               best_wave,
+		"best_wave_hardcore":      best_wave_hardcore,
+		"total_hc_bosses_killed":  total_hc_bosses_killed,
+		"character_levels":        character_levels,
+		"character_xp":            character_xp,
+		"unlocked_characters":     unlocked_characters,
+		"unlocked_talents":        unlocked_talents,
+		"selected_character":      selected_character,
+		"runs_per_character":      runs_per_character,
+		"perm_upgrades":           perm_upgrades,
+		"selected_skin":           selected_skin,
+		"unlocked_skins":          unlocked_skins,
+		"unlocked_powers":         unlocked_powers,
 	}
 
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
@@ -555,10 +614,11 @@ func load_progress() -> void:
 		_init_defaults()
 		return
 
-	total_souls          = parsed.get("total_souls", 0)
-	total_souls_ever     = parsed.get("total_souls_ever", 0)
-	best_wave            = parsed.get("best_wave", 0)
-	best_wave_hardcore   = parsed.get("best_wave_hardcore", 0)
+	total_souls               = parsed.get("total_souls", 0)
+	total_souls_ever          = parsed.get("total_souls_ever", 0)
+	best_wave                 = parsed.get("best_wave", 0)
+	best_wave_hardcore        = parsed.get("best_wave_hardcore", 0)
+	total_hc_bosses_killed    = parsed.get("total_hc_bosses_killed", 0)
 	character_levels     = parsed.get("character_levels", {})
 	character_xp         = parsed.get("character_xp", {})
 	unlocked_characters  = Array(parsed.get("unlocked_characters", []))

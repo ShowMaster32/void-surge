@@ -7,7 +7,7 @@ signal zone_changed(zone_data: ZoneData)
 signal zone_generated(zone_id: String)
 signal hazard_hit(damage: float)   ## Emesso ogni volta che il danno ambientale colpisce i player
 
-@export var zone_size: Vector2 = Vector2(3000, 3000)
+@export var zone_size: Vector2 = Vector2(4800, 4800)
 @export var transition_duration: float = 1.5
 
 # Zone disponibili
