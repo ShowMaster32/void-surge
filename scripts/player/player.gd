@@ -263,6 +263,8 @@ func _validate_power_slots() -> void:
 func _check_disable_builtin_camera() -> void:
 	if camera == null:
 		return
+	# Registra la camera nel gruppo per CameraShake
+	camera.add_to_group("game_cameras")
 	var ssm := get_tree().get_first_node_in_group("split_screen_manager")
 	if ssm and GameManager.player_count > 1:
 		camera.enabled = false
@@ -657,6 +659,7 @@ func take_damage(amount: float) -> void:
 		return
 
 	AudioManager.sfx("damage_taken", 0.10)
+	CameraShake.light()
 
 	# Riduzione danno: talento sentinel + Void Shroud attivo
 	var reduced := amount * (1.0 - _meta_damage_reduction) * (1.0 - _shield_dr)
@@ -688,6 +691,7 @@ func heal(amount: float) -> void:
 
 func _die() -> void:
 	is_dead = true
+	CameraShake.heavy()
 	died.emit(self)
 	GameManager.unregister_player(self)
 	collision.set_deferred("disabled", true)
@@ -829,6 +833,7 @@ func _try_activate_e() -> void:
 
 func _execute_power(power_id: String) -> void:
 	AudioManager.sfx("power_use", 0.06)
+	CameraShake.medium()
 	match power_id:
 		# Difensivi
 		"shield_burst":     _power_shield_burst()

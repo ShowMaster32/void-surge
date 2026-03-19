@@ -173,6 +173,7 @@ func _spawn_boss() -> void:
 	_spawn_boss_hud(boss)
 
 	boss_wave_started.emit(boss_id, boss)
+	CameraShake.heavy()
 
 	# Notifica milestone
 	var notifier := get_tree().get_first_node_in_group("milestone_notifier")

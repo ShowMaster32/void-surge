@@ -29,6 +29,8 @@ VFX="*res://scripts/systems/vfx_manager.gd"
 EquipmentManager="*res://autoload/equipment_manager.gd"
 MetaManager="*res://autoload/meta_manager.gd"
 AudioManager="*res://autoload/audio_manager.gd"
+CameraShake="*res://autoload/camera_shake.gd"
+ScoreManager="*res://autoload/score_manager.gd"
 
 [display]
 

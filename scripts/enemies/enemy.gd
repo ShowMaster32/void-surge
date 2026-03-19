@@ -212,6 +212,7 @@ func _die() -> void:
 		return
 	is_dead = true
 	AudioManager.sfx("explosion", 0.12)
+	CameraShake.light()
 
 	# Incrementa kill counter nel GameManager
 	var gm: Node = get_node_or_null("/root/GameManager")

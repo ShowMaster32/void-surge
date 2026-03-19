@@ -17,6 +17,8 @@ signal quit_to_menu
 @onready var sfx_slider: HSlider = $CenterContainer/SettingsPanel/VBoxContainer/SFXVolume/SFXSlider
 @onready var back_button: Button = $CenterContainer/SettingsPanel/VBoxContainer/BackButton
 
+const SETTINGS_PATH := "user://settings.cfg"
+
 @onready var controls_panel: PanelContainer = $CenterContainer/ControlsPanel
 @onready var controls_back_button: Button = $CenterContainer/ControlsPanel/VBoxContainer/ControlsBackButton
 
@@ -52,6 +54,9 @@ func _ready() -> void:
 		settings_panel.visible = false
 	if controls_panel:
 		controls_panel.visible = false
+
+	# Carica e applica impostazioni salvate
+	_load_settings()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -148,17 +153,52 @@ func _on_quit_pressed() -> void:
 
 
 func _on_master_volume_changed(value: float) -> void:
-	var db := linear_to_db(value)
-	AudioServer.set_bus_volume_db(AudioServer.get_bus_index("Master"), db)
+	AudioServer.set_bus_volume_db(AudioServer.get_bus_index("Master"), linear_to_db(value))
+	_save_settings()
 
 
 func _on_music_volume_changed(value: float) -> void:
-	var bus_idx := AudioServer.get_bus_index("Music")
+	# Lo slider "Music" controlla il bus Ambient (drone)
+	var bus_idx := AudioServer.get_bus_index("Ambient")
+	if bus_idx < 0:
+		bus_idx = AudioServer.get_bus_index("Music")
 	if bus_idx >= 0:
 		AudioServer.set_bus_volume_db(bus_idx, linear_to_db(value))
+	_save_settings()
 
 
 func _on_sfx_volume_changed(value: float) -> void:
 	var bus_idx := AudioServer.get_bus_index("SFX")
 	if bus_idx >= 0:
 		AudioServer.set_bus_volume_db(bus_idx, linear_to_db(value))
+	_save_settings()
+
+
+# ── Persistenza impostazioni ────────────────────────────────────────────────────
+
+func _save_settings() -> void:
+	var cfg := ConfigFile.new()
+	cfg.set_value("audio", "master", master_slider.value)
+	cfg.set_value("audio", "ambient", music_slider.value)
+	cfg.set_value("audio", "sfx",    sfx_slider.value)
+	cfg.save(SETTINGS_PATH)
+
+
+func _load_settings() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load(SETTINGS_PATH) != OK:
+		# Prima volta: imposta valori di default ragionevoli
+		master_slider.value = 0.85
+		music_slider.value  = 0.55
+		sfx_slider.value    = 0.80
+		_on_master_volume_changed(master_slider.value)
+		_on_music_volume_changed(music_slider.value)
+		_on_sfx_volume_changed(sfx_slider.value)
+		return
+
+	master_slider.value = cfg.get_value("audio", "master",  0.85)
+	music_slider.value  = cfg.get_value("audio", "ambient", 0.55)
+	sfx_slider.value    = cfg.get_value("audio", "sfx",     0.80)
+	_on_master_volume_changed(master_slider.value)
+	_on_music_volume_changed(music_slider.value)
+	_on_sfx_volume_changed(sfx_slider.value)
