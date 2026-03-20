@@ -11,6 +11,11 @@ var player_to_device: Dictionary = {}
 
 const KEYBOARD_MOUSE_DEVICE := -1
 
+## Vettori touch iniettati da TouchControls (Android / iOS)
+var touch_move_vector: Vector2 = Vector2.ZERO
+var touch_aim_vector : Vector2 = Vector2.ZERO
+var touch_shooting   : bool    = false
+
 
 func _ready() -> void:
 	Input.joy_connection_changed.connect(_on_joy_connection_changed)
@@ -82,6 +87,10 @@ func assign_device_to_player(device_id: int, player_id: int) -> void:
 
 
 func get_movement_vector(player_id: int) -> Vector2:
+	# Touch ha priorità (Android / iOS)
+	if touch_move_vector.length_squared() > 0.01:
+		return touch_move_vector
+
 	var device_id: int = player_to_device.get(player_id, KEYBOARD_MOUSE_DEVICE)
 
 	if device_id == KEYBOARD_MOUSE_DEVICE:
@@ -101,6 +110,10 @@ func get_movement_vector(player_id: int) -> Vector2:
 ## In split screen (SubViewports) get_camera_2d() può essere null:
 ## in quel caso convertiamo le coordinate via canvas_transform.
 func get_aim_vector(player_id: int, player_position: Vector2) -> Vector2:
+	# Touch joystick destro ha priorità
+	if touch_aim_vector.length_squared() > 0.01:
+		return touch_aim_vector.normalized()
+
 	var device_id: int = player_to_device.get(player_id, KEYBOARD_MOUSE_DEVICE)
 
 	if device_id == KEYBOARD_MOUSE_DEVICE:
@@ -132,6 +145,10 @@ func get_aim_vector(player_id: int, player_position: Vector2) -> Vector2:
 
 
 func is_shooting(player_id: int) -> bool:
+	# Touch shoot ha priorità
+	if touch_shooting:
+		return true
+
 	var device_id: int = player_to_device.get(player_id, KEYBOARD_MOUSE_DEVICE)
 
 	# Fallback: se P0 è ancora keyboard/mouse ma c'è un controller connesso, usalo

@@ -32,6 +32,7 @@ AudioManager="*res://autoload/audio_manager.gd"
 CameraShake="*res://autoload/camera_shake.gd"
 ScoreManager="*res://autoload/score_manager.gd"
 RunSaver="*res://autoload/run_saver.gd"
+TouchControls="*res://scripts/ui/touch_controls.gd"
 
 [display]
 
@@ -78,6 +79,10 @@ pause={
 , Object(InputEventJoypadButton,"resource_local_to_scene":false,"resource_name":"","device":-1,"button_index":6,"pressure":0.0,"pressed":true,"script":null)
 ]
 }
+
+[input_devices]
+
+pointing/emulate_touch_from_mouse=true
 
 [layer_names]
 

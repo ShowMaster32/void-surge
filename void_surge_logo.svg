@@ -1,0 +1,207 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" width="800" height="400">
+  <defs>
+    <!-- Deep space background gradient -->
+    <radialGradient id="bgGrad" cx="50%" cy="50%" r="70%">
+      <stop offset="0%"   stop-color="#0a0a1a"/>
+      <stop offset="100%" stop-color="#000005"/>
+    </radialGradient>
+
+    <!-- Void portal glow -->
+    <radialGradient id="voidGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#7b00ff" stop-opacity="0.5"/>
+      <stop offset="60%"  stop-color="#3300aa" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Cyan glow filter -->
+    <filter id="cyanGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <!-- Purple glow filter -->
+    <filter id="purpleGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <!-- Text glow -->
+    <filter id="textGlow" x="-10%" y="-30%" width="120%" height="160%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <!-- Surge text glow -->
+    <filter id="surgeGlow" x="-10%" y="-30%" width="120%" height="160%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+
+    <!-- Star clip -->
+    <clipPath id="bgClip">
+      <rect width="800" height="400"/>
+    </clipPath>
+  </defs>
+
+  <!-- Background -->
+  <rect width="800" height="400" fill="url(#bgGrad)"/>
+
+  <!-- Stars layer 1 (small) -->
+  <g clip-path="url(#bgClip)" opacity="0.7">
+    <circle cx="42"  cy="18"  r="0.8" fill="#ffffff"/>
+    <circle cx="120" cy="55"  r="1.0" fill="#ccddff"/>
+    <circle cx="200" cy="22"  r="0.7" fill="#ffffff"/>
+    <circle cx="310" cy="40"  r="1.1" fill="#ffffff"/>
+    <circle cx="380" cy="12"  r="0.6" fill="#aabbff"/>
+    <circle cx="480" cy="35"  r="0.9" fill="#ffffff"/>
+    <circle cx="560" cy="18"  r="1.0" fill="#ffffff"/>
+    <circle cx="640" cy="48"  r="0.8" fill="#ccddff"/>
+    <circle cx="720" cy="25"  r="0.7" fill="#ffffff"/>
+    <circle cx="770" cy="60"  r="1.0" fill="#ffffff"/>
+    <circle cx="60"  cy="340" r="0.9" fill="#ffffff"/>
+    <circle cx="150" cy="370" r="0.7" fill="#aabbff"/>
+    <circle cx="260" cy="355" r="1.0" fill="#ffffff"/>
+    <circle cx="350" cy="380" r="0.8" fill="#ffffff"/>
+    <circle cx="500" cy="360" r="1.1" fill="#ccddff"/>
+    <circle cx="600" cy="375" r="0.7" fill="#ffffff"/>
+    <circle cx="700" cy="345" r="0.9" fill="#ffffff"/>
+    <circle cx="755" cy="385" r="0.8" fill="#ffffff"/>
+    <circle cx="30"  cy="200" r="0.7" fill="#ffffff"/>
+    <circle cx="780" cy="220" r="0.8" fill="#aabbff"/>
+  </g>
+
+  <!-- Void portal background glow -->
+  <ellipse cx="400" cy="195" rx="220" ry="180" fill="url(#voidGlow)"/>
+
+  <!-- Void portal rings -->
+  <g filter="url(#purpleGlow)">
+    <circle cx="400" cy="195" r="155" fill="none" stroke="#6600dd" stroke-width="1.5" opacity="0.4"/>
+    <circle cx="400" cy="195" r="130" fill="none" stroke="#8800ff" stroke-width="1"   opacity="0.5"/>
+    <circle cx="400" cy="195" r="105" fill="none" stroke="#aa22ff" stroke-width="1.5" opacity="0.35"/>
+  </g>
+
+  <!-- Energy arcs around portal -->
+  <g filter="url(#cyanGlow)" opacity="0.6">
+    <path d="M 285 130 Q 340 90  400 95  Q 460 90  515 130" fill="none" stroke="#00eeff" stroke-width="1.5"/>
+    <path d="M 275 255 Q 335 295 400 298 Q 465 295 525 255" fill="none" stroke="#00eeff" stroke-width="1.5"/>
+  </g>
+
+  <!-- Ship silhouette -->
+  <g transform="translate(400, 195)">
+    <!-- Engine glow (behind ship) -->
+    <ellipse cx="0" cy="38" rx="18" ry="28" fill="#ff6600" opacity="0.25"/>
+    <ellipse cx="0" cy="30" rx="10" ry="18" fill="#ff9900" opacity="0.35"/>
+
+    <!-- Main body -->
+    <polygon points="0,-68  22,10  12,28  0,22  -12,28  -22,10" fill="#1a1a3a" stroke="#00ccff" stroke-width="1.5"/>
+
+    <!-- Cockpit window -->
+    <ellipse cx="0" cy="-30" rx="9" ry="14" fill="#0055aa" opacity="0.8"/>
+    <ellipse cx="0" cy="-33" rx="5" ry="8"  fill="#00aaff" opacity="0.6"/>
+
+    <!-- Wing left -->
+    <polygon points="-22,10  -58,42  -48,52  -12,28" fill="#111128" stroke="#00ccff" stroke-width="1.2"/>
+    <!-- Wing right -->
+    <polygon points=" 22,10   58,42   48,52   12,28" fill="#111128" stroke="#00ccff" stroke-width="1.2"/>
+
+    <!-- Wing accent stripes -->
+    <line x1="-30" y1="22" x2="-50" y2="44" stroke="#00eeff" stroke-width="1" opacity="0.7"/>
+    <line x1=" 30" y1="22" x2=" 50" y2="44" stroke="#00eeff" stroke-width="1" opacity="0.7"/>
+
+    <!-- Engine exhausts -->
+    <ellipse cx="-10" cy="30" rx="5"  ry="8"  fill="#00aaff" opacity="0.5"/>
+    <ellipse cx=" 10" cy="30" rx="5"  ry="8"  fill="#00aaff" opacity="0.5"/>
+    <ellipse cx="0"   cy="32" rx="7"  ry="10" fill="#ffffff"  opacity="0.3"/>
+
+    <!-- Weapon glow tips -->
+    <circle cx="-54" cy="50" r="3" fill="#ff4400" opacity="0.8"/>
+    <circle cx=" 54" cy="50" r="3" fill="#ff4400" opacity="0.8"/>
+
+    <!-- Ship highlight -->
+    <line x1="-5" y1="-65" x2="-5" y2="15" stroke="#88ccff" stroke-width="0.7" opacity="0.4"/>
+  </g>
+
+  <!-- Plasma bolt left -->
+  <g filter="url(#cyanGlow)">
+    <line x1="240" y1="172" x2="308" y2="185" stroke="#00ffcc" stroke-width="2.5" opacity="0.7"/>
+    <circle cx="240" cy="172" r="3" fill="#00ffcc" opacity="0.9"/>
+  </g>
+  <!-- Plasma bolt right -->
+  <g filter="url(#cyanGlow)">
+    <line x1="560" y1="172" x2="492" y2="185" stroke="#00ffcc" stroke-width="2.5" opacity="0.7"/>
+    <circle cx="560" cy="172" r="3" fill="#00ffcc" opacity="0.9"/>
+  </g>
+
+  <!-- ═══ TESTO "VOID" ═══ -->
+  <g filter="url(#textGlow)">
+    <text
+      x="400" y="318"
+      text-anchor="middle"
+      font-family="'Arial Black', 'Impact', sans-serif"
+      font-size="88"
+      font-weight="900"
+      letter-spacing="18"
+      fill="#c8aaff"
+    >VOID</text>
+  </g>
+  <!-- VOID bordo neon -->
+  <text
+    x="400" y="318"
+    text-anchor="middle"
+    font-family="'Arial Black', 'Impact', sans-serif"
+    font-size="88"
+    font-weight="900"
+    letter-spacing="18"
+    fill="none"
+    stroke="#aa55ff"
+    stroke-width="0.8"
+    opacity="0.9"
+  >VOID</text>
+
+  <!-- ═══ TESTO "SURGE" ═══ -->
+  <g filter="url(#surgeGlow)">
+    <text
+      x="400" y="378"
+      text-anchor="middle"
+      font-family="'Arial Black', 'Impact', sans-serif"
+      font-size="64"
+      font-weight="900"
+      letter-spacing="24"
+      fill="#00eeff"
+    >SURGE</text>
+  </g>
+  <!-- SURGE bordo -->
+  <text
+    x="400" y="378"
+    text-anchor="middle"
+    font-family="'Arial Black', 'Impact', sans-serif"
+    font-size="64"
+    font-weight="900"
+    letter-spacing="24"
+    fill="none"
+    stroke="#00aacc"
+    stroke-width="0.8"
+    opacity="0.9"
+  >SURGE</text>
+
+  <!-- Divider line between VOID and SURGE -->
+  <line x1="180" y1="332" x2="620" y2="332" stroke="#6633cc" stroke-width="0.8" opacity="0.6"/>
+
+  <!-- Corner decorations -->
+  <g opacity="0.4" stroke="#4422aa" stroke-width="1" fill="none">
+    <polyline points="20,20  20,50  50,20"/>
+    <polyline points="780,20 780,50 750,20"/>
+    <polyline points="20,380 20,350 50,380"/>
+    <polyline points="780,380 780,350 750,380"/>
+  </g>
+
+  <!-- Particle sparks -->
+  <g filter="url(#cyanGlow)" opacity="0.8">
+    <circle cx="170" cy="145" r="1.5" fill="#00ffee"/>
+    <circle cx="185" cy="160" r="1.0" fill="#00ffee"/>
+    <circle cx="630" cy="145" r="1.5" fill="#00ffee"/>
+    <circle cx="615" cy="158" r="1.0" fill="#00ffee"/>
+    <circle cx="350" cy="100" r="1.2" fill="#aa88ff"/>
+    <circle cx="450" cy="98"  r="1.2" fill="#aa88ff"/>
+  </g>
+</svg>
